@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
 from langchain_community.vectorstores import Chroma
-from langchain_community.embeddings import HuggingFaceBgeEmbeddings
+from modules.embeddings import embeddings
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
@@ -30,7 +30,6 @@ def load_vectorstore(uploaded_files):
     splitter=RecursiveCharacterTextSplitter(chunk_size=1000,chunk_overlap=100)
     texts=splitter.split_documents(docs)
 
-    embeddings=HuggingFaceBgeEmbeddings(model_name="all-MiniLM-L12-v2")
 
 
     if os.path.exists(PERSIST_DIR) and os.listdir(PERSIST_DIR):
