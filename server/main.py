@@ -53,7 +53,6 @@ async def ask_question(question: str = Form(...)):
         )
         chain = get_llm_chain(vectorstore)
         
-        # Correct way to invoke the chain
         result = chain.invoke(question)
         
         logger.info("Query successful")
