@@ -30,4 +30,8 @@ loguru
 # File Uploads
 aiofiles
 
+# Authentication
+python-jose[cryptography]
+passlib[bcrypt]
+email-validator
 
