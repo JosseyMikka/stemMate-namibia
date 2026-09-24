@@ -30,6 +30,7 @@ def load_vectorstore(uploaded_files):
     splitter=RecursiveCharacterTextSplitter(chunk_size=1000,chunk_overlap=100)
     texts=splitter.split_documents(docs)
 
+  
 
 
     if os.path.exists(PERSIST_DIR) and os.listdir(PERSIST_DIR):

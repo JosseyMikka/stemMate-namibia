@@ -44,12 +44,12 @@ async def ask_question(question: str = Form(...)):
     try:
         logger.info(f"User query: {question}")
         from langchain_community.vectorstores import Chroma
-        from langchain_community.embeddings import HuggingFaceBgeEmbeddings
+        from modules.embeddings import embeddings
         from modules.load_vectorstore import PERSIST_DIR
 
         vectorstore = Chroma(
             persist_directory=PERSIST_DIR,
-            embedding_function=HuggingFaceBgeEmbeddings(model_name="all-MiniLM-L12-v2")
+            embedding_function=embeddings
         )
         chain = get_llm_chain(vectorstore)
         

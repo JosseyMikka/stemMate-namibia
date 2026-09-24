@@ -1,78 +1,54 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useState } from "react";
+import { askQuestion } from "../api/stemmateApi";
 import Message from "./Message";
-import UploadModal from "./UploadModal";
-import { sendChatMessage, downloadConversation, getConversation } from "../api/stemmateApi";
-import type { ChatMessage, Conversation, StemSubject, TutorMode } from "../types/chat";
-import { SUBJECTS, TUTOR_MODES, WELCOME_MESSAGE } from "../types/chat";
+import type { ChatMessage } from "../types/chat";
 
-const QUICK_PROMPTS = [
-  "Explain photosynthesis simply",
-  "Help me with quadratic equations",
-  "What is Newton's first law?",
-  "Quiz me on the periodic table",
-];
-
-interface Props {
-  conversation: Conversation | null;
-  onConversationUpdate: () => void;
-}
-
-export default function Chat({ conversation, onConversationUpdate }: Props) {
-  const [messages, setMessages] = useState<ChatMessage[]>([WELCOME_MESSAGE]);
-  const [input, setInput] = useState("");
+export default function Chat() {
+  const [question, setQuestion] = useState("");
   const [loading, setLoading] = useState(false);
-  const [tutorMode, setTutorMode] = useState<TutorMode>(null);
-  const [subject, setSubject] = useState<StemSubject>("General");
-  const [showUpload, setShowUpload] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  useEffect(() => {
-    if (!conversation) {
-      setMessages([WELCOME_MESSAGE]);
-      return;
-    }
+  const [messages, setMessages] = useState<ChatMessage[]>([
+    {
+      role: "assistant",
+      content:
+        "👋 Welcome to StemMate! I'm your Namibian STEM tutor. Ask me anything about Mathematics, Physics, Biology, Chemistry, or Technology.",
+    },
+  ]);
 
-    const load = async () => {
-      const data = await getConversation(conversation.id);
-      setSubject((data.conversation.subject as StemSubject) || "General");
-      if (data.messages.length === 0) {
-        setMessages([WELCOME_MESSAGE]);
-      } else {
-        setMessages(data.messages);
-      }
+  const sendMessage = async () => {
+    if (!question.trim()) return;
+
+    const userMessage: ChatMessage = {
+      role: "user",
+      content: question,
     };
-    load();
-  }, [conversation?.id]);
 
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, loading]);
-
-  const sendMessage = async (text?: string) => {
-    const content = (text ?? input).trim();
-    if (!content || !conversation || loading) return;
-
-    const userMessage: ChatMessage = { role: "user", content };
     setMessages((prev) => [...prev, userMessage]);
-    setInput("");
-    if (textareaRef.current) textareaRef.current.style.height = "auto";
+
+    const currentQuestion = question;
+    setQuestion("");
 
     try {
       setLoading(true);
-      const response = await sendChatMessage(conversation.id, content, tutorMode, subject);
+
+      const response = await askQuestion(currentQuestion);
+
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: response.answer },
+        {
+          role: "assistant",
+          content: response.answer,
+        },
       ]);
-      onConversationUpdate();
-    } catch {
+    } catch (error) {
+      console.error(error);
+
       setMessages((prev) => [
         ...prev,
         {
           role: "assistant",
           content:
-            "Sorry, I couldn't answer that right now. Please check that the server is running and try again.",
+            "Sorry, I couldn't answer that right now. Please try again.",
         },
       ]);
     } finally {
@@ -80,139 +56,88 @@ export default function Chat({ conversation, onConversationUpdate }: Props) {
     }
   };
 
-  const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage();
-    }
-  };
-
-  const handleDownload = async () => {
-    if (!conversation) return;
-    try {
-      const blob = await downloadConversation(conversation.id);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `stemmate_${conversation.title.slice(0, 30).replace(/\s/g, "_")}.txt`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch {
-      alert("Could not download chat history.");
-    }
-  };
-
-  const showQuickPrompts = messages.length <= 1 && !loading;
-
   return (
-    <>
-      <header className="chat-header">
-        <div className="chat-header-left">
-          <select
-            className="subject-select"
-            value={subject}
-            onChange={(e) => setSubject(e.target.value as StemSubject)}
-            title="Subject focus"
-          >
-            {SUBJECTS.map((s) => (
-              <option key={s} value={s}>
-                {s === "General" ? "📚 All subjects" : s}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="chat-header-actions">
-          <button type="button" className="header-btn" onClick={() => setShowUpload(true)}>
-            📄 Upload PDFs
-          </button>
-          {conversation && messages.length > 1 && (
-            <button type="button" className="header-btn" onClick={handleDownload}>
-              ⬇ Download
-            </button>
-          )}
-        </div>
-      </header>
+    <div
+      style={{
+        flex: 1,
+        display: "flex",
+        flexDirection: "column",
+        maxWidth: "900px",
+        width: "100%",
+        margin: "0 auto",
+      }}
+    >
+      {/* Messages */}
+      <div
+        style={{
+          flex: 1,
+          overflowY: "auto",
+          padding: "24px",
+        }}
+      >
+        {messages.map((message, index) => (
+          <Message key={index} message={message} />
+        ))}
 
-      <div className="messages-container">
-        <div className="messages-inner">
-          {showQuickPrompts && (
-            <div className="quick-prompts">
-              {QUICK_PROMPTS.map((prompt) => (
-                <button
-                  key={prompt}
-                  type="button"
-                  className="quick-prompt-btn"
-                  onClick={() => sendMessage(prompt)}
-                >
-                  {prompt}
-                </button>
-              ))}
-            </div>
-          )}
-
-          {messages.map((message, index) => (
-            <Message key={message.id ?? index} message={message} />
-          ))}
-
-          {loading && (
-            <Message
-              message={{ role: "assistant", content: "" }}
-              isTyping
-            />
-          )}
-          <div ref={messagesEndRef} />
-        </div>
-      </div>
-
-      <div className="chat-input-area">
-        <div className="tutor-modes">
-          {TUTOR_MODES.map((mode) => (
-            <button
-              key={mode.label}
-              type="button"
-              className={`tutor-mode-btn ${tutorMode === mode.id ? "active" : ""}`}
-              onClick={() => setTutorMode(mode.id)}
-            >
-              {mode.icon} {mode.label}
-            </button>
-          ))}
-        </div>
-
-        <div className="chat-input-wrapper">
-          <textarea
-            ref={textareaRef}
-            className="chat-input"
-            value={input}
-            onChange={(e) => {
-              setInput(e.target.value);
-              e.target.style.height = "auto";
-              e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px`;
+        {loading && (
+          <Message
+            message={{
+              role: "assistant",
+              content: "Thinking...",
             }}
-            onKeyDown={handleKeyDown}
-            placeholder={
-              tutorMode === "quiz"
-                ? "Ask for a quiz on any topic…"
-                : "Ask your STEM question… (Enter to send)"
-            }
-            rows={1}
-            disabled={!conversation || loading}
           />
-          <button
-            type="button"
-            className="send-btn"
-            onClick={() => sendMessage()}
-            disabled={!input.trim() || !conversation || loading}
-            title="Send"
-          >
-            ➤
-          </button>
-        </div>
-        <p className="chat-disclaimer">
-          StemMate tutors using NSSC-aligned materials. Always verify with your teacher.
-        </p>
+        )}
       </div>
 
-      {showUpload && <UploadModal onClose={() => setShowUpload(false)} />}
-    </>
+      {/* Input */}
+      <div
+        style={{
+          padding: "20px",
+          borderTop: "1px solid #e5e7eb",
+          background: "white",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            gap: "10px",
+            maxWidth: "900px",
+            margin: "0 auto",
+          }}
+        >
+          <input
+            value={question}
+            onChange={(e) => setQuestion(e.target.value)}
+            onKeyDown={(e) =>
+              e.key === "Enter" && sendMessage()
+            }
+            placeholder="Ask a STEM question..."
+            style={{
+              flex: 1,
+              padding: "14px",
+              borderRadius: "12px",
+              border: "1px solid #d1d5db",
+              fontSize: "15px",
+            }}
+          />
+
+          <button
+            onClick={sendMessage}
+            disabled={loading}
+            style={{
+              background: "#003580",
+              color: "white",
+              border: "none",
+              padding: "0 20px",
+              borderRadius: "12px",
+              cursor: "pointer",
+              fontWeight: 600,
+            }}
+          >
+            Send
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
