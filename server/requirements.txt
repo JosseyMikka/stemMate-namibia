@@ -11,8 +11,14 @@ langchain-groq
 # Vectorstore
 chromadb
 
-# Embeddings
-sentence-transformers
+# Text splitting (used by load_vectorstore)
+langchain-text-splitters
+
+# Embeddings (ONNX runtime instead of sentence-transformers/PyTorch to keep memory low)
+onnxruntime
+tokenizers
+huggingface_hub
+numpy
 
 # PDF Parsing
 PyPDF  # backend for PyPDFLoader via langchain_community
@@ -27,7 +33,8 @@ requests
 # Logging 
 loguru
 
-# File Uploads
+# File Uploads / form data (required by FastAPI's Form and File parameters)
 aiofiles
+python-multipart
 
 

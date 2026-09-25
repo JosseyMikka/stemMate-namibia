@@ -1,7 +1,8 @@
 import axios from "axios";
 import type { ChatResponse } from "../types/chat";
 
-const API_URL = "http://localhost:8000";
+// Set VITE_API_URL to the deployed backend URL (e.g. on Vercel); falls back to local dev.
+const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
 
 export const uploadPDFs = async (files: File[]) => {
   const formData = new FormData();
