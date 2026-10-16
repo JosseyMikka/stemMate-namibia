@@ -129,3 +129,49 @@ and safety benchmark across reading levels; assistive-technology user testing;
 and a properly consented study of delayed, unaided transfer. The current global
 limit of 60 AI generations per hour bounds provider calls for a small pilot but
 is neither a per-user quota nor protection against a determined attacker.
+
+## Your own GitHub repository and hosting
+
+The source repository is `xeilaaa/stemMate-namibia`; the connected GitHub account
+for this work is `JosseyMikka`. Fork the source into your own account to preserve
+its history. Apply the redesign branch there and open a pull request against your
+fork's `main`. The upstream repository does not need to be changed. Grant the
+GitHub integration access only to your intended repository, including permission
+to write repository contents, workflows and pull requests.
+
+GitHub stores the code and runs the checks. GitHub Pages cannot run the Python
+backend. The included `render.yaml` prepares both the React static site and the
+Python API in one Render account. It does not deploy anything by being committed.
+Creating a Render Blueprint does trigger initial hosting setup; do that only after
+reviewing the PR and approving deployment. Subsequent automatic deploys are off.
+
+When you are ready to create the Blueprint in your Render account:
+
+1. Connect your own GitHub fork and select the reviewed branch. Review the service
+   names first; rename them in the Blueprint if they conflict with existing services.
+2. Supply `GROQ_API_KEY` privately in Render. Never put it in GitHub or in any
+   frontend `VITE_` setting. Render generates the teacher key on the API service;
+   keep it private and use it only in the teacher panel.
+3. Set the API's `STEMMATE_ORIGINS` to the exact HTTPS address of your frontend,
+   without a trailing slash. Set the frontend's `VITE_API_URL` to the API's exact
+   HTTPS address. If the assigned addresses differ from your initial values,
+   correct these settings and manually redeploy the affected service.
+4. Keep the API at one instance and one worker because learning state is in memory.
+   The included free pilot configuration can sleep, restart and lose temporary
+   sessions. Check memory and model-download behavior before choosing a paid plan.
+5. Verify `/test`, start a guided lesson, test a direct explanation, and test teacher
+   hint limits/pause from the hosted frontend. Check CORS, equations and both phone
+   and desktop layouts with real Groq responses. Review the curriculum and provider
+   data handling before learners use it. Keep Blueprint Auto Sync off if configuration
+   changes should also require a manual action.
+
+This deployment configuration has been checked against Render's Blueprint fields;
+no hosted deployment or live provider validation has been performed. Existing
+curriculum vectors are included in the original repository checkout; anonymous
+uploads remain disabled. Audit existing tracked data before making another copy
+public. The original source has no root license file, so resolve permission and
+attribution before redistribution beyond the requested fork.
+
+References: [GitHub Pages limitations](https://docs.github.com/en/pages/getting-started-with-github-pages/creating-a-github-pages-site),
+[Render Blueprint fields](https://render.com/docs/blueprint-spec),
+[Render deployment controls](https://render.com/docs/deploys).

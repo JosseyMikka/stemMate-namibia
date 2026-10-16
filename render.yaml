@@ -1,0 +1,34 @@
+# Review and create these services in your own Render account when ready.
+# Linking this file to Render can trigger an initial deployment. Git pushes alone
+# do not deploy: automatic deployment is deliberately disabled for both services.
+services:
+  - type: web
+    name: stemmate-api
+    runtime: python
+    rootDir: server
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT --workers 1
+    healthCheckPath: /test
+    autoDeployTrigger: 'off'
+    envVars:
+      - key: GROQ_API_KEY
+        sync: false
+      - key: STEMMATE_TEACHER_KEY
+        generateValue: true
+      - key: STEMMATE_ORIGINS
+        sync: false
+      - key: STEMMATE_MAX_HINTS
+        value: "3"
+  - type: web
+    name: stemmate-web
+    runtime: static
+    rootDir: stemmate-frontend
+    buildCommand: npm install --global pnpm@11.25.0 && pnpm install --frozen-lockfile && pnpm build
+    staticPublishPath: dist
+    autoDeployTrigger: 'off'
+    envVars:
+      - key: NODE_VERSION
+        value: 22.16.0
+      - key: VITE_API_URL
+        sync: false
