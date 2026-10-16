@@ -1,5 +1,5 @@
 # Web Framework
-fastapi
+fastapi>=0.115,<1
 uvicorn[standard]
 
 # LangChain & Ecosystem
@@ -27,7 +27,7 @@ PyPDF  # backend for PyPDFLoader via langchain_community
 python-dotenv
 
 # Typing & Utilities
-pydantic
+pydantic>=2.7,<3
 requests
 
 # Logging 
@@ -36,5 +36,3 @@ loguru
 # File Uploads / form data (required by FastAPI's Form and File parameters)
 aiofiles
 python-multipart
-
-

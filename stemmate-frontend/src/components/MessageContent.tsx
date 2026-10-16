@@ -1,68 +1,21 @@
-function renderInlineMarkdown(text: string): string {
-  let html = text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
+import ReactMarkdown from 'react-markdown';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
 
-  html = html.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
-  html = html.replace(/\*(.+?)\*/g, "<em>$1</em>");
-  html = html.replace(/`(.+?)`/g, "<code>$1</code>");
-
-  const lines = html.split("\n");
-  const result: string[] = [];
-  let inList = false;
-
-  for (const line of lines) {
-    const bullet = line.match(/^[-•]\s+(.+)/);
-    const numbered = line.match(/^\d+\.\s+(.+)/);
-
-    if (bullet) {
-      if (!inList) {
-        result.push("<ul>");
-        inList = true;
-      }
-      result.push(`<li>${bullet[1]}</li>`);
-    } else if (numbered) {
-      if (!inList) {
-        result.push("<ol>");
-        inList = true;
-      }
-      result.push(`<li>${numbered[1]}</li>`);
-    } else {
-      if (inList) {
-        result.push("</ul>");
-        inList = false;
-      }
-      if (line.trim()) {
-        result.push(`<p>${line}</p>`);
-      }
-    }
-  }
-  if (inList) result.push("</ul>");
-
-  return result.join("");
+// Models often put both display delimiters on one line. Markdown math expects
+// a block; normalize outside code so those equations retain display layout.
+function normalizeMath(content: string) {
+  return content.split(/(`{3,}[\s\S]*?`{3,}|~{3,}[\s\S]*?~{3,}|`+[^`\n]*`+)/g)
+    .map((part, index) => index % 2 ? part : part.replace(/\$\$([\s\S]*?)\$\$/g,
+      (_, math: string) => `\n\n$$\n${math.trim()}\n$$\n\n`)).join('');
 }
 
-interface Props {
-  content: string;
-  isTyping?: boolean;
-}
-
-export default function MessageContent({ content, isTyping }: Props) {
-  if (isTyping) {
-    return (
-      <div className="typing-indicator">
-        <span className="typing-dot" />
-        <span className="typing-dot" />
-        <span className="typing-dot" />
-      </div>
-    );
-  }
-
-  return (
-    <div
-      className="message-content"
-      dangerouslySetInnerHTML={{ __html: renderInlineMarkdown(content) }}
-    />
-  );
+export default function MessageContent({ content, isTyping }: {content: string; isTyping?: boolean}) {
+  if (isTyping) return <p role="status">Preparing your learning activity…</p>;
+  return <div className="message-content"><ReactMarkdown
+    remarkPlugins={[remarkMath]}
+    rehypePlugins={[[rehypeKatex, {throwOnError: false, trust: false, strict: 'warn', maxExpand: 1000}]]}
+    skipHtml
+    components={{a: ({children}) => <span>{children}</span>, img: () => null}}
+  >{normalizeMath(content)}</ReactMarkdown></div>;
 }

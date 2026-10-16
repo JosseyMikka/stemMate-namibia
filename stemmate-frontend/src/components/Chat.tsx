@@ -1,143 +1,117 @@
-import { useState } from "react";
-import { askQuestion } from "../api/stemmateApi";
-import Message from "./Message";
-import type { ChatMessage } from "../types/chat";
+import { lazy, Suspense, useRef, useState } from 'react';
+import { request, type Lesson } from '../api/stemmateApi';
+const MathContent = lazy(() => import('./MessageContent'));
+function MessageContent({ content }: {content: string}) {
+  return <Suspense fallback={<p role="status">Loading learning material…</p>}><MathContent content={content} /></Suspense>;
+}
+import TeacherControls from './TeacherControls';
 
+const stages = ['attempt', 'explain', 'feedback', 'apply', 'independent', 'complete'];
+const labels: Record<string, string> = {
+  attempt: 'Predict or try', explain: 'Explain your thinking', feedback: 'Compare and reflect',
+  apply: 'Apply your learning', independent: 'Try independently', complete: 'Review your learning',
+};
 export default function Chat() {
-  const [question, setQuestion] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [topic, setTopic] = useState('');
+  const [band, setBand] = useState('primary');
+  const [consent, setConsent] = useState(false);
+  const [mode, setMode] = useState('guided');
+  const [token, setToken] = useState('');
+  const [lesson, setLesson] = useState<Lesson | null>(null);
+  const [answer, setAnswer] = useState('');
+  const [work, setWork] = useState('');
+  const [notes, setNotes] = useState<{label: string; text: string}[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const inFlight = useRef(false);
+  const focusTarget = useRef<HTMLHeadingElement>(null);
 
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      role: "assistant",
-      content:
-        "👋 Welcome to StemMate! I'm your Namibian STEM tutor. Ask me anything about Mathematics, Physics, Biology, Chemistry, or Technology.",
-    },
-  ]);
-
-  const sendMessage = async () => {
-    if (!question.trim()) return;
-
-    const userMessage: ChatMessage = {
-      role: "user",
-      content: question,
-    };
-
-    setMessages((prev) => [...prev, userMessage]);
-
-    const currentQuestion = question;
-    setQuestion("");
-
-    try {
-      setLoading(true);
-
-      const response = await askQuestion(currentQuestion);
-
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content: response.answer,
-        },
-      ]);
-    } catch (error) {
-      console.error(error);
-
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content:
-            "Sorry, I couldn't answer that right now. Please try again.",
-        },
-      ]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div
-      style={{
-        flex: 1,
-        display: "flex",
-        flexDirection: "column",
-        maxWidth: "900px",
-        width: "100%",
-        margin: "0 auto",
-      }}
-    >
-      {/* Messages */}
-      <div
-        style={{
-          flex: 1,
-          overflowY: "auto",
-          padding: "24px",
-        }}
-      >
-        {messages.map((message, index) => (
-          <Message key={index} message={message} />
-        ))}
-
-        {loading && (
-          <Message
-            message={{
-              role: "assistant",
-              content: "Thinking...",
-            }}
-          />
-        )}
-      </div>
-
-      {/* Input */}
-      <div
-        style={{
-          padding: "20px",
-          borderTop: "1px solid #e5e7eb",
-          background: "white",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            gap: "10px",
-            maxWidth: "900px",
-            margin: "0 auto",
-          }}
-        >
-          <input
-            value={question}
-            onChange={(e) => setQuestion(e.target.value)}
-            onKeyDown={(e) =>
-              e.key === "Enter" && sendMessage()
-            }
-            placeholder="Ask a STEM question..."
-            style={{
-              flex: 1,
-              padding: "14px",
-              borderRadius: "12px",
-              border: "1px solid #d1d5db",
-              fontSize: "15px",
-            }}
-          />
-
-          <button
-            onClick={sendMessage}
-            disabled={loading}
-            style={{
-              background: "#003580",
-              color: "white",
-              border: "none",
-              padding: "0 20px",
-              borderRadius: "12px",
-              cursor: "pointer",
-              fontWeight: 600,
-            }}
-          >
-            Send
-          </button>
-        </div>
-      </div>
-    </div>
-  );
+  async function run(task: () => Promise<void>) {
+    if (inFlight.current) return;
+    inFlight.current = true; setBusy(true); setError('');
+    try { await task(); requestAnimationFrame(() => focusTarget.current?.focus()); }
+    catch (e) { setError(e instanceof Error ? e.message : 'Please try again.'); }
+    finally { inFlight.current = false; setBusy(false); }
+  }
+  function start() {
+    void run(async () => {
+      if (mode === 'direct') {
+        const result = await request<{answer: string}>('/explain', 'POST', {topic, band});
+        setAnswer(result.answer);
+      } else {
+        const result = await request<Lesson & {token: string}>('/learning', 'POST', {topic, band, consent: band !== 'primary' && consent});
+        setLesson(result); setToken(result.token);
+      }
+    });
+  }
+  function act(action: string) {
+    void run(async () => {
+      const result = await request<Lesson>('/learning/session', 'POST', {action, attempted: Boolean(work.trim())}, undefined, token);
+      if (action === 'continue') {
+        if (work.trim()) setNotes(n => [...n, {label: labels[lesson!.stage], text: work}]);
+        setWork(''); setAnswer('');
+      }
+      if (result.direct_explanation) setAnswer(result.direct_explanation);
+      setLesson(result);
+    });
+  }
+  function reset() {
+    void run(async () => {
+      if (token) await request('/learning/session', 'DELETE', undefined, undefined, token);
+      setToken(''); setLesson(null); setAnswer(''); setNotes([]); setWork('');
+    });
+  }
+  const prompt = lesson?.stage === 'apply' ? lesson.application : lesson?.stage === 'independent' ? lesson.independent : lesson?.challenge;
+  return <div className="shell">
+    <header><a className="brand" href="#main"><span className="brand-icon">SM</span><span>STEMMate<small>Think it through. Make it yours.</small></span></a><TeacherControls /></header>
+    <main id="main">
+      <p className="eyebrow">YOUR NAMIBIAN STEM LEARNING PARTNER</p>
+      <h1>Build understanding,<br /><span>one thought at a time.</span></h1>
+      <p className="intro">Try an idea, get a little support, and see what you can do on your own.</p>
+      <aside className="privacy">Keep your name, school and contact details out of your work. AI can make mistakes; check important ideas with your teacher. For practical experiments, ask an adult first.</aside>
+      {!lesson && !answer && <section className="card">
+        <h2 ref={focusTarget} tabIndex={-1}>What are you exploring?</h2>
+        <form onSubmit={e => {e.preventDefault(); start();}}>
+          <fieldset disabled={busy}><legend>Choose how to learn</legend><div className="mode-options">
+            <label><input type="radio" name="mode" value="guided" checked={mode === 'guided'} onChange={() => setMode('guided')} /> Guide my thinking <small>Try → hints → explain → apply → independent check</small></label>
+            <label><input type="radio" name="mode" value="direct" checked={mode === 'direct'} onChange={() => setMode('direct')} /> Explain it directly <small>Accessible, step-by-step support when you need it</small></label>
+          </div></fieldset>
+          <label htmlFor="band">Reading level</label><select id="band" value={band} disabled={busy} onChange={e => setBand(e.target.value)}><option value="primary">Primary — short, concrete steps</option><option value="secondary">Secondary — build the connections</option><option value="senior">Senior secondary — deeper reasoning</option></select>
+          <label htmlFor="topic">Your STEM topic or question</label><textarea id="topic" value={topic} maxLength={2000} required disabled={busy} onChange={e => setTopic(e.target.value)} placeholder="For example: How do I solve a linear equation?" />
+          {mode === 'guided' && band !== 'primary' && <label className="check"><input type="checkbox" checked={consent} disabled={busy} onChange={e => setConsent(e.target.checked)} /> Share anonymous activity counts if my teacher enables evaluation. Optional; no answers or personal details are included. Ask your teacher or guardian before opting in.</label>}
+          <button disabled={busy || !topic.trim()}>{busy ? 'Preparing…' : mode === 'guided' ? 'Start thinking →' : 'Show an explanation'}</button>
+        </form>
+      </section>}
+      {lesson && <>
+        <ol className="progress" aria-label="Learning progress">{stages.map((s, i) => <li key={s} aria-current={s === lesson.stage ? 'step' : undefined} className={s === lesson.stage ? 'current' : ''}><span>{i + 1}</span>{labels[s]}</li>)}</ol>
+        <section className="card" aria-busy={busy}>
+          <p className="eyebrow">STEP {stages.indexOf(lesson.stage) + 1} OF 6</p>
+          <h2 ref={focusTarget} tabIndex={-1}>{labels[lesson.stage]}</h2>
+          {lesson.stage !== 'complete' && <MessageContent content={prompt ?? ''} />}
+          {lesson.stage === 'attempt' && <p>What do you predict? Try a first step and say why. Being unsure is welcome.</p>}
+          {lesson.stage === 'explain' && <><p>Explain why your approach might work. What rule or evidence supports it? You can also explain where you are stuck.</p>{lesson.hints.map((h, i) => <aside className="hint" key={i}><strong>Hint {i + 1}</strong><MessageContent content={h} /></aside>)}<button className="secondary" disabled={busy || lesson.hints_used >= lesson.max_hints} onClick={() => act('hint')}>One more hint ({lesson.hints_used}/{lesson.max_hints})</button></>}
+          {lesson.stage === 'feedback' && <><MessageContent content={lesson.explanation ?? ''} /><p>Compare this with your attempt. Where do the reasons agree? What would you change? This is a model explanation, not a mark for your work.</p></>}
+          {lesson.stage === 'apply' && <p>Use the idea in this new situation. Show your steps and explain your choice.</p>}
+          {lesson.stage === 'independent' && <aside className="hint">Try this new problem without AI hints, notes or outside help. Your answer stays in this browser and is not sent to the AI. This is practice, not a supervised assessment.</aside>}
+          {lesson.stage === 'complete' ? <>
+            <p>You have completed the learning steps. Completion alone does not show mastery.</p>
+            {lesson.direct_used && <p>You used a direct explanation. Keep that support in mind when reviewing what you can do alone.</p>}
+            <h3>Application: compare your reasoning</h3><MessageContent content={lesson.application ?? ''} /><MessageContent content={lesson.application_explanation ?? ''} />
+            <h3>Independent check: compare after your attempt</h3><MessageContent content={lesson.independent ?? ''} /><MessageContent content={lesson.independent_explanation ?? ''} />
+            <p>Can you explain every step without looking? Ask your teacher to review uncertain answers and try another problem later without help.</p>
+          </> : <form onSubmit={e => {e.preventDefault(); act('continue');}}>
+            <label htmlFor="work">{lesson.stage === 'feedback' ? 'Your reflection (optional)' : 'Your thinking'}</label>
+            <textarea id="work" value={work} maxLength={4000} disabled={busy} required={lesson.stage !== 'feedback'} onChange={e => setWork(e.target.value)} placeholder="Write a short attempt, explain your idea, or say where you are stuck." />
+            <button disabled={busy || (lesson.stage !== 'feedback' && !work.trim())}>{busy ? 'Saving step…' : lesson.stage === 'independent' ? 'Submit attempt and compare' : 'Continue →'}</button>
+          </form>}
+          {!['independent', 'complete'].includes(lesson.stage) && <button className="text-button" disabled={busy} onClick={() => act('direct')}>I need a direct explanation</button>}
+        </section>
+      </>}
+      {answer && <section className="card"><h2 ref={!lesson ? focusTarget : undefined} tabIndex={-1}>Direct explanation</h2><p>Use this support, then try explaining the idea yourself. Reading an answer is different from doing it independently.</p><MessageContent content={answer} /></section>}
+      {notes.length > 0 && lesson?.stage !== 'independent' && <details className="card"><summary>Your thinking in this browser</summary>{notes.map((n, i) => <div key={i}><h3>{n.label}</h3><p className="learner-text">{n.text}</p></div>)}</details>}
+      {(lesson || answer) && <button className="secondary" disabled={busy} onClick={reset}>Clear this session and start again</button>}
+      {busy && <p role="status">Working on your request…</p>}{error && <p role="alert" className="error">{error}</p>}
+      <footer>Your topic is sent to our AI provider with relevant learning material. Your written attempts stay in this browser. Temporary lesson plans expire after one hour; clearing a session deletes its plan. No chat history is saved.</footer>
+    </main>
+  </div>;
 }

@@ -1,39 +1,20 @@
-import axios from "axios";
-import type { ChatResponse } from "../types/chat";
-
-// Set VITE_API_URL to the deployed backend URL (e.g. on Vercel); falls back to local dev.
-const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
-
-export const uploadPDFs = async (files: File[]) => {
-  const formData = new FormData();
-
-  files.forEach((file) => {
-    formData.append("files", file);
+const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
+export interface Lesson {
+  stage: 'attempt' | 'explain' | 'feedback' | 'apply' | 'independent' | 'complete';
+  challenge: string; hints: string[]; hints_used: number; max_hints: number;
+  direct_used: boolean; explanation?: string; application?: string;
+  independent?: string; application_explanation?: string;
+  independent_explanation?: string; direct_explanation?: string;
+}
+export interface TeacherPolicy { max_hints: number; paused: boolean; evaluation_enabled: boolean }
+export async function request<T>(path: string, method = 'GET', body?: unknown, key?: string, token?: string): Promise<T> {
+  const response = await fetch(`${API_URL}${path}`, {
+    method, headers: { 'Content-Type': 'application/json', ...(key ? { 'X-Teacher-Key': key } : {}), ...(token ? { 'X-Learning-Token': token } : {}) },
+    body: body === undefined ? undefined : JSON.stringify(body),
   });
-
-  const response = await axios.post(
-    `${API_URL}/upload_pdfs/`,
-    formData,
-    {
-      headers: {
-        "Content-Type": "multipart/form-data",
-      },
-    }
-  );
-
-  return response.data;
-};
-
-export const askQuestion = async (
-  question: string
-): Promise<ChatResponse> => {
-  const formData = new FormData();
-  formData.append("question", question);
-
-  const response = await axios.post(
-    `${API_URL}/ask/`,
-    formData
-  );
-
-  return response.data;
-};
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(typeof data.detail === 'string' ? data.detail : 'Unable to complete this request. Please try again.');
+  }
+  return response.json();
+}

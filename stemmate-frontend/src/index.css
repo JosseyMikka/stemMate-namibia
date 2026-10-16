@@ -1,111 +1,160 @@
-:root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: #e5e4e7;
-  --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
-  --social-bg: rgba(244, 243, 236, 0.5);
-  --shadow:
-    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
-
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
-
-  font: 18px/145% var(--sans);
-  letter-spacing: 0.18px;
-  color-scheme: light dark;
-  color: var(--text);
-  background: var(--bg);
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-
-  @media (max-width: 1024px) {
-    font-size: 16px;
-  }
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-    --social-bg: rgba(47, 48, 58, 0.5);
-    --shadow:
-      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
-  }
-
-  #social .button-icon {
-    filter: invert(1) brightness(2);
-  }
-}
-
-#root {
-  width: 1126px;
-  max-width: 100%;
-  margin: 0 auto;
-  text-align: center;
-  border-inline: 1px solid var(--border);
-  min-height: 100svh;
-  display: flex;
-  flex-direction: column;
-  box-sizing: border-box;
-}
-
-body {
-  margin: 0;
-}
-
-h1,
-h2 {
-  font-family: var(--heading);
-  font-weight: 500;
-  color: var(--text-h);
-}
-
-h1 {
-  font-size: 56px;
-  letter-spacing: -1.68px;
-  margin: 32px 0;
-  @media (max-width: 1024px) {
-    font-size: 36px;
-    margin: 20px 0;
-  }
-}
-h2 {
-  font-size: 24px;
-  line-height: 118%;
-  letter-spacing: -0.24px;
-  margin: 0 0 8px;
-  @media (max-width: 1024px) {
-    font-size: 20px;
-  }
-}
-p {
-  margin: 0;
-}
-
-code,
-.counter {
-  font-family: var(--mono);
-  display: inline-flex;
-  border-radius: 4px;
-  color: var(--text-h);
-}
-
-code {
-  font-size: 15px;
-  line-height: 135%;
-  padding: 4px 8px;
-  background: var(--code-bg);
+:root{font-family:Inter,system-ui,sans-serif;
+  color:#16332e;
+  background:#f3f7f5;
+  font-synthesis:none;
+  line-height:1.6}
+*{box-sizing:border-box}
+body{margin:0}
+button,input,textarea,select{font:inherit}
+button{background:#14594c;
+  color:white;
+  border:1px solid #14594c;
+  border-radius:9px;
+  padding:.7rem 1.15rem;
+  cursor:pointer;
+  font-weight:650;
+  margin:.5rem .5rem .5rem 0}
+button:disabled{opacity:.55;
+  cursor:not-allowed}
+button.secondary{background:white;
+  color:#14594c}
+button.text-button{background:transparent;
+  border:0;
+  color:#14594c;
+  text-decoration:underline}
+a{color:inherit}
+input:not([type=checkbox]):not([type=radio]),select,textarea{width:100%;
+  padding:.8rem;
+  border:1px solid #899f97;
+  border-radius:8px;
+  background:#fff;
+  color:#16332e;
+  margin:.4rem 0 1rem}
+textarea{min-height:110px;
+  resize:vertical}
+label{display:block;
+  font-weight:600}
+label small{display:block;
+  font-weight:400;
+  color:#45635b}
+fieldset{border:0;
+  padding:0;
+  margin:0 0 1rem}
+legend{font-weight:600;
+  margin-bottom:.5rem}
+.shell{max-width:1180px;
+  margin:auto;
+  padding:0 32px}
+header{display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:1rem;
+  padding:26px 0;
+  border-bottom:1px solid #d3dfd9}
+.brand{display:flex;
+  align-items:center;
+  gap:12px;
+  text-decoration:none;
+  font-size:22px;
+  font-weight:750}
+.brand small{display:block;
+  font-size:12px;
+  font-weight:400}
+.brand-icon{background:#14594c;
+  color:white;
+  padding:10px;
+  border-radius:12px}
+main{max-width:850px;
+  margin:48px auto}
+.eyebrow{font-size:12px;
+  letter-spacing:.14em;
+  font-weight:750;
+  color:#316e5e}
+h1{font-size:clamp(32px,5vw,52px);
+  line-height:1.15;
+  letter-spacing:-.035em;
+  margin:14px 0}
+h1 span{color:#397d65}
+.intro{font-size:18px;
+  color:#45635b}
+.privacy{border-left:3px solid #6b9983;
+  padding:8px 16px;
+  font-size:14px;
+  margin:24px 0}
+.card{background:white;
+  border:1px solid #d3dfd9;
+  border-radius:16px;
+  padding:30px;
+  margin:24px 0;
+  box-shadow:0 5px 20px #16332e05}
+h2{margin:0 0 18px;
+  font-size:24px}
+h3{font-size:17px}
+.mode-options{display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:12px}
+.mode-options label{border:1px solid #b7ccc1;
+  border-radius:9px;
+  padding:14px}
+.check{font-size:14px;
+  font-weight:400;
+  display:flex;
+  align-items:flex-start;
+  gap:8px;
+  margin:12px 0}
+.check input{margin-top:6px;
+  flex-shrink:0}
+.progress{padding:0;
+  display:flex;
+  list-style:none;
+  gap:10px;
+  font-size:12px;
+  flex-wrap:wrap}
+.progress li{flex:1;
+  min-width:100px;
+  border-top:3px solid #c7d6ce;
+  padding-top:8px}
+.progress .current{border-color:#14594c;
+  font-weight:bold}
+.progress span{display:block}
+.hint{background:#eff6ed;
+  padding:14px 18px;
+  border-radius:8px;
+  margin:16px 0}
+.message-content{overflow-wrap:anywhere}
+.message-content .katex-display{overflow-x:auto;
+  overflow-y:hidden;
+  padding:.6rem 0}
+.learner-text{white-space:pre-wrap}
+.teacher{position:relative;
+  font-size:14px}
+.teacher summary{cursor:pointer}
+.teacher-panel{position:absolute;
+  right:0;
+  top:40px;
+  width:min(380px,85vw);
+  background:white;
+  padding:22px;
+  border:1px solid #a8bdb2;
+  border-radius:12px;
+  box-shadow:0 12px 35px #1233;
+  z-index:5}
+.error{background:#fff0ef;
+  border:1px solid #ab3931;
+  color:#7c211b;
+  padding:16px;
+  border-radius:8px}
+footer{font-size:12px;
+  color:#45635b;
+  margin:35px 0}
+summary{cursor:pointer}
+*:focus-visible{outline:3px solid #bb6d00;
+  outline-offset:3px}
+@media(max-width:600px){.shell{padding:0 16px}
+header{align-items:flex-start}
+.brand small{max-width:150px}
+.card{padding:20px}
+.mode-options{grid-template-columns:1fr}
+main{margin-top:30px}
+.progress li{min-width:90px}
 }
