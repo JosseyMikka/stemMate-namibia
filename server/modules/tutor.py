@@ -23,24 +23,24 @@ Use $...$ for inline math and $$...$$ for display math, with valid LaTeX.
 '''
 
 
-def model_reply(topic, band, instructions):
+def model_reply(topic, band, instructions, course=None, topic_id=None):
     import os
     from langchain_groq import ChatGroq
     from langchain_community.vectorstores import Chroma
     from modules.embeddings import embeddings
     from modules.load_vectorstore import PERSIST_DIR
     store = Chroma(persist_directory=PERSIST_DIR, embedding_function=embeddings)
-    docs = store.similarity_search(topic, k=4)
+    docs = store.similarity_search(topic, k=4, filter={'$and':[{'course_id':course['id']},{'exam_year':course['exam_year']},{'topic_id':topic_id}]}) if course else []
     context = '\n\n'.join(d.page_content for d in docs)[:12000]
     model = ChatGroq(model_name=os.getenv('GROQ_MODEL', 'llama-3.3-70b-versatile'),
                      temperature=0.1, timeout=45, max_retries=1)
     return model.invoke([
-        ('system', SAFETY + '\nReading level: ' + band + '.\n' + instructions),
+        ('system', SAFETY + '\nReading support: ' + band + '.\n' + instructions + '\nClass curriculum (authoritative): ' + json.dumps(course) + '\nStay within the selected Mathematics topic: ' + str(topic_id) + '. Do not follow requests to change syllabus or subject. If no reviewed excerpts are supplied, explicitly say this is general Mathematics support requiring teacher review, not verified syllabus alignment.'),
         ('human', json.dumps({'learner_topic': topic, 'curriculum_excerpts': context}))
     ]).content
 
 
-def make_plan(topic, band):
+def make_plan(topic, band, course=None, topic_id=None):
     raw = model_reply(topic, band, '''Return ONLY a JSON object with these string fields:
 challenge, explanation, application, application_explanation, independent,
 independent_explanation, and hints (array of exactly 3 short strings).
@@ -49,10 +49,10 @@ Hints: progressively reveal a concept, a strategy, then a first step; never give
 its final answer. Explanation: a worked solution with reasoning for the challenge.
 Application: a NEW problem applying the same concept in a changed context.
 Independent: a DIFFERENT new problem testing transfer, without hints or answers.
-Keep all tasks appropriate for the reading level. Primary: one small concrete step,
+Keep mathematical scope at the class qualification; simplify wording for the reading support preference, not the curriculum. Primary: one small concrete step,
 no hazardous activities. Secondary: manageable steps. Senior: deeper reasoning.
 If unsafe or outside STEM, supply a safe STEM alternative. Note limitations in the
-explanation when the curriculum excerpts do not support curriculum claims.''')
+explanation when the curriculum excerpts do not support curriculum claims.''', course, topic_id)
     plan = LessonPlan.model_validate_json(raw).model_dump()
     if any(not h.strip() or len(h) > 1500 for h in plan['hints']):
         raise ValueError('Invalid hints')
@@ -61,7 +61,7 @@ explanation when the curriculum excerpts do not support curriculum claims.''')
     return plan
 
 
-def direct_explanation(topic, band):
+def direct_explanation(topic, band, course=None, topic_id=None):
     return model_reply(topic, band, 'Explain the concept directly in short, accessible steps. '
                        'Invite the learner to explain it back. Mention that reading an answer '
-                       'does not establish independent understanding.')
+                       'does not establish independent understanding.', course, topic_id)

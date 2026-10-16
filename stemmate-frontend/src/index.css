@@ -178,3 +178,12 @@ main:focus {outline:none;}
 @media(max-width:360px) {header {gap:.5rem;} .teacher {margin-left:0;flex-basis:100%;} .card {padding:16px;}}
 @media(prefers-reduced-motion:reduce) {*, *::before, *::after {scroll-behavior:auto!important;animation:none!important;transition:none!important;}}
 @media(forced-colors:active) {button, input, textarea, select, .hint, .card {border:1px solid CanvasText;} .progress .current {border-top:4px solid Highlight;}}
+.account-page {padding:1rem;max-width:760px;}
+.class-grid {display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:1rem;}
+button.class-card {display:flex;flex-direction:column;align-items:flex-start;text-align:left;background:white;color:#16332e;border:2px solid #617b6e;padding:1rem;white-space:normal;}
+button.class-card.selected {border:3px solid #14594c;background:#e8f2ec;}
+.class-card span {display:block;font-size:.9rem;}
+.classroom {margin-top:2rem;border-top:2px solid #617b6e;padding-top:1rem;}
+.classroom:focus {outline:3px solid #bb6d00;outline-offset:4px;}
+.learning-area {margin-top:2rem;}
+header > div, .class-card strong, .class-card span {min-width:0;max-width:100%;overflow-wrap:anywhere;}

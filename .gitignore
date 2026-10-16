@@ -22,3 +22,9 @@ server/chroma_store/
 # OS files
 .DS_Store
 Thumbs.db
+
+# Private classroom identity store (never commit accounts or tokens)
+server/private/
+*.sqlite3-journal
+*.sqlite3-wal
+*.sqlite3-shm

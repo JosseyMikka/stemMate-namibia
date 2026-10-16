@@ -1,5 +1,1 @@
-import Chat from '../components/Chat';
-
-export default function Home() {
-  return <Chat />;
-}
+export {default} from '../App';

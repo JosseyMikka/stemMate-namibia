@@ -2,23 +2,38 @@ import asyncio
 from contextlib import asynccontextmanager, suppress
 import os
 import secrets
+import hashlib
 from collections import deque
 from time import monotonic
-from fastapi import FastAPI, Header, HTTPException, Form
+from fastapi import FastAPI, Header, HTTPException, Depends, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import Literal
 from starlette.concurrency import run_in_threadpool
 from modules.learning import LearningStore, visible, advance
 from modules.tutor import make_plan, direct_explanation
+from modules import accounts
+from modules.curricula import catalogue, starter_plan
+
+store = LearningStore()
+ai_calls = deque()
+auth_attempts = {}
+rate_salt = secrets.token_bytes(32)
 
 @asynccontextmanager
 async def lifespan(app):
+    with accounts.db():
+        pass
     async def cleanup():
         while True:
             await asyncio.sleep(60)
             with store.lock:
                 store.purge()
+                now = monotonic()
+                for key in list(auth_attempts):
+                    if not auth_attempts[key] or auth_attempts[key][-1] < now-600:
+                        del auth_attempts[key]
     task = asyncio.create_task(cleanup())
     try:
         yield
@@ -27,174 +42,161 @@ async def lifespan(app):
         with suppress(asyncio.CancelledError):
             await task
 
-app = FastAPI(title='STEMMate guided learning', lifespan=lifespan)
+app = FastAPI(title='STEMMate classroom learning', lifespan=lifespan)
 app.add_middleware(CORSMiddleware,
     allow_origins=os.getenv('STEMMATE_ORIGINS', 'http://localhost:5173').split(','),
-    allow_methods=['GET', 'POST', 'PUT', 'DELETE'], allow_headers=['Content-Type', 'X-Teacher-Key', 'X-Learning-Token'])
-store = LearningStore()
-# Deployment policy, shared by all learners; restarting restores configured defaults.
-policy = {'max_hints': max(0, min(3, int(os.getenv('STEMMATE_MAX_HINTS', '3')))),
-          'paused': False, 'evaluation_enabled': False}
-counts = {}
-ai_calls = deque()
+    allow_methods=['GET','POST','PUT','DELETE'], allow_headers=['Content-Type','Authorization','X-Learning-Token'])
+app.include_router(accounts.router)
+
+@app.middleware('http')
+async def privacy_and_limits(request:Request, call_next):
+    # Transient salted buckets protect password verification and invitation guessing.
+    # No IPs are retained, logged, or included in evaluation data.
+    limited = request.url.path in ('/auth/login','/auth/register','/classes/join')
+    if limited:
+        key = hashlib.sha256(rate_salt + (request.client.host if request.client else 'unknown').encode()).hexdigest()
+        with store.lock:
+            now=monotonic()
+            bucket=auth_attempts.setdefault(key,deque())
+            while bucket and bucket[0] < now-600:
+                bucket.popleft()
+            if len(bucket)>=300 or len(auth_attempts)>5000:
+                return JSONResponse(status_code=429,content={'detail':'Too many sign-in or class-code attempts. Try again in ten minutes.'},headers={'Cache-Control':'no-store'})
+            bucket.append(now)
+    response=await call_next(request)
+    response.headers['Cache-Control']='no-store'
+    response.headers['Referrer-Policy']='no-referrer'
+    return response
+
 
 def reserve_ai():
     with store.lock:
-        now = monotonic()
-        while ai_calls and ai_calls[0] < now - 3600:
+        now=monotonic()
+        while ai_calls and ai_calls[0] < now-3600:
             ai_calls.popleft()
-        if len(ai_calls) >= 60:
-            raise HTTPException(429, "The tutor has reached its hourly limit. Try again later.")
+        if len(ai_calls)>=60:
+            raise HTTPException(429,'The tutor has reached its hourly limit. Starter practice remains available.')
         ai_calls.append(now)
 
-
 class Start(BaseModel):
-    topic: str = Field(min_length=1, max_length=2000)
-    band: Literal['primary', 'secondary', 'senior'] = 'primary'
-    consent: bool = False
+    class_id:int
+    topic_id:str
+    topic:str=Field(default='',max_length=2000)
+    band:Literal['primary','secondary','senior']='secondary'
+    consent:bool=False
 
 class Action(BaseModel):
-    action: Literal['hint', 'direct', 'continue']
-    attempted: bool = False
-
-class Policy(BaseModel):
-    max_hints: int = Field(ge=0, le=3)
-    paused: bool
-    evaluation_enabled: bool
+    action:Literal['hint','direct','continue']
+    attempted:bool=False
 
 
-def teacher(key):
-    configured = os.getenv('STEMMATE_TEACHER_KEY', '')
-    if len(configured) < 24 or not key or not secrets.compare_digest(key.encode('utf-8'), configured.encode('utf-8')):
-        raise HTTPException(403, 'Teacher access is not configured or the key is invalid.')
+def active_class(class_id,user):
+    classroom=accounts.class_access(class_id,user)
+    if classroom['paused']:
+        raise HTTPException(503,'Your teacher has paused learning in this class. Ask them for support.')
+    return classroom
 
 
-def record(s, event):
-    # Aggregate only: no IDs, timestamps, learner prose, grades or model responses.
-    if policy['evaluation_enabled'] and s.consent and s.band != 'primary':
-        counts[event] = counts.get(event, 0) + 1
-
-
-def session(token):
+def owned_session(token,user):
     try:
-        return store.get(token)
+        s=store.get(token)
     except KeyError:
-        raise HTTPException(404, 'Session expired. Start a new session.')
+        raise HTTPException(404,'Session expired. Start a new session.')
+    if s.owner_id!=user['id']:
+        raise HTTPException(403,'This learning session belongs to another account.')
+    classroom=accounts.class_access(s.class_id,user)
+    return s,classroom
 
 
-def running():
-    if policy['paused']:
-        raise HTTPException(503, 'Your teacher has paused AI learning. Ask them for support.')
+def record(s,event,user,classroom):
+    if user['role']=='learner' and classroom['evaluation_enabled'] and s.consent:
+        accounts.record(s.class_id,event)
 
 
-@app.middleware('http')
-async def no_cache(request, call_next):
-    response = await call_next(request)
-    response.headers['Cache-Control'] = 'no-store'
-    response.headers['Referrer-Policy'] = 'no-referrer'
-    return response
+def response(s,classroom):
+    return {**visible(s,classroom['max_hints']), 'class_id':s.class_id,
+            'curriculum':classroom['course'], 'content_source':s.plan.get('_source','original_starter')}
 
-@app.get('/policy')
-def get_policy():
-    with store.lock:
-        return dict(policy)
-
-@app.put('/teacher/policy')
-def set_policy(value: Policy, x_teacher_key: str = Header(default='')):
-    teacher(x_teacher_key)
-    with store.lock:
-        policy.update(value.model_dump())
-        if not value.evaluation_enabled:
-            counts.clear()
-    return policy
-
-@app.get('/teacher/evaluation')
-def evaluation(x_teacher_key: str = Header(default='')):
-    teacher(x_teacher_key)
-    with store.lock:
-        return {'counts': dict(counts), 'notice': 'Voluntary process counts; not scores or evidence of mastery.'}
-
-@app.delete('/teacher/evaluation')
-def clear_evaluation(x_teacher_key: str = Header(default='')):
-    teacher(x_teacher_key)
-    with store.lock:
-        counts.clear()
-    return {'deleted': True}
+@app.get('/curricula')
+def curricula():
+    return catalogue()
 
 @app.post('/learning')
-async def start(value: Start):
-    running()
-    if not value.topic.strip():
-        raise HTTPException(422, 'Enter a STEM topic or question.')
-    reserve_ai()
-    try:
-        plan = await run_in_threadpool(make_plan, value.topic, value.band)
-    except Exception:
-        # Never send provider errors or learner data to logs or the response.
-        raise HTTPException(503, 'The tutor could not prepare a lesson. Please try again.')
-    with store.lock:
-        running()
+async def start(value:Start,user=Depends(accounts.current_user)):
+    classroom=active_class(value.class_id,user)
+    plan=starter_plan(classroom['course'],value.topic_id)
+    if value.topic.strip():
+        reserve_ai()
+        course={**classroom['course'],'exam_year':classroom['exam_year'],'grade':classroom['grade']}
         try:
-            token = store.create(plan, value.band, value.consent)
+            plan=await run_in_threadpool(make_plan,value.topic,value.band,course,value.topic_id)
+            plan['_source']='ai_general_support'
+        except Exception:
+            raise HTTPException(503,'The AI tutor is unavailable. Clear the optional question to use starter practice.')
+    with store.lock:
+        classroom=active_class(value.class_id,user)
+        try:
+            token=store.create(plan,value.band,value.consent,user['id'],value.class_id)
         except ValueError as error:
-            raise HTTPException(503, str(error))
-        s = store.get(token)
-        record(s, 'started')
-        return {'token': token, **visible(s, policy['max_hints'])}
+            raise HTTPException(503,str(error))
+        s=store.get(token)
+        record(s,'started',user,classroom)
+        return {'token':token,**response(s,classroom)}
 
 @app.get('/learning/session')
-def resume(x_learning_token: str = Header(default='')):
-    token = x_learning_token
+def resume(x_learning_token:str=Header(default=''),user=Depends(accounts.current_user)):
     with store.lock:
-        return visible(session(token), policy['max_hints'])
+        s,classroom=owned_session(x_learning_token,user)
+        return response(s,classroom)
 
 @app.post('/learning/session')
-def act(value: Action, x_learning_token: str = Header(default='')):
-    token = x_learning_token
+def act(value:Action,x_learning_token:str=Header(default=''),user=Depends(accounts.current_user)):
     with store.lock:
-        running()
-        s = session(token)
+        s,classroom=owned_session(x_learning_token,user)
+        classroom=active_class(s.class_id,user)
         try:
-            advance(s, value.action, value.attempted, policy['max_hints'])
+            advance(s,value.action,value.attempted,classroom['max_hints'])
         except ValueError as error:
-            raise HTTPException(409, str(error))
-        record(s, value.action if value.action != 'continue' else s.stage)
-        result = visible(s, policy['max_hints'])
-        if value.action == 'direct':
-            result['direct_explanation'] = s.plan['explanation']
+            raise HTTPException(409,str(error))
+        record(s,value.action if value.action!='continue' else s.stage,user,classroom)
+        result=response(s,classroom)
+        if value.action=='direct':
+            result['direct_explanation']=s.plan['explanation']
         return result
 
 @app.delete('/learning/session')
-def forget(x_learning_token: str = Header(default='')):
-    token = x_learning_token
+def forget(x_learning_token:str=Header(default=''),user=Depends(accounts.current_user)):
     with store.lock:
-        store.sessions.pop(token, None)
-    return {'deleted': True}
+        s=store.sessions.get(x_learning_token)
+        # Deleting one's temporary work remains possible after class access is revoked.
+        if s and s.owner_id!=user['id']:
+            raise HTTPException(403,'This session belongs to another account.')
+        store.sessions.pop(x_learning_token,None)
+    return {'deleted':True}
 
 @app.post('/explain')
-async def explain(value: Start):
-    running()
-    if not value.topic.strip():
-        raise HTTPException(422, 'Enter a STEM topic or question.')
-    reserve_ai()
-    try:
-        answer = await run_in_threadpool(direct_explanation, value.topic, value.band)
-        running()
-        return {'answer': answer}
-    except HTTPException:
-        raise
-    except Exception:
-        raise HTTPException(503, 'The tutor is unavailable. Please try again.')
+async def explain(value:Start,user=Depends(accounts.current_user)):
+    classroom=active_class(value.class_id,user)
+    plan=starter_plan(classroom['course'],value.topic_id)
+    answer=plan['explanation']
+    if value.topic.strip():
+        reserve_ai()
+        course={**classroom['course'],'exam_year':classroom['exam_year'],'grade':classroom['grade']}
+        try:
+            answer=await run_in_threadpool(direct_explanation,value.topic,value.band,course,value.topic_id)
+        except Exception:
+            raise HTTPException(503,'The AI tutor is unavailable. Clear the optional question to use starter practice.')
+    active_class(value.class_id,user)
+    return {'answer':answer,'content_source':'ai_general_support' if value.topic.strip() else 'original_starter'}
 
 @app.post('/ask/')
-async def legacy_ask(question: str = Form(..., min_length=1, max_length=2000)):
-    # Compatibility for the older Streamlit client; clearly a direct explanation.
-    return await explain(Start(topic=question))
+def legacy_ask():
+    raise HTTPException(410,'Use the signed-in classroom interface. Anonymous direct answers have been retired.')
 
 @app.post('/upload_pdfs/')
 def uploads_disabled():
-    raise HTTPException(403, 'Shared uploads are disabled. Ask the curriculum administrator to review materials.')
+    raise HTTPException(403,'Shared uploads are disabled. Ask the curriculum administrator to review and tag materials.')
 
 @app.get('/test')
 def health():
-    return {'message': 'STEMMate is running'}
+    return {'message':'STEMMate is running'}

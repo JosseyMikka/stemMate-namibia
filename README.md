@@ -1,101 +1,108 @@
 # STEMMate — reasoning before answers
 
-A React / TypeScript / Vite interface backed by FastAPI and a local Chroma curriculum
-store. Groq generates a structured lesson once; the server releases only the
-material appropriate to the learner's current stage. The older Streamlit client
-still uses `/ask/` for direct explanations and does not provide the guided flow.
+React/TypeScript and FastAPI support Mathematics practice for Grades 10–12.
+Learners attempt, use progressive hints, explain, apply and complete an independent
+check. Direct explanations remain available during supported stages. Independent
+checks hide help until submission. This is formative practice, not secure examination
+software, and completion is not a measure of correctness or critical thinking.
+
+## Accounts and classes
+
+Learners and teachers have separate accounts. A teacher needs the deployment's
+private admission code to register, then can create and manage several classes,
+including different grades and curriculum pathways. Each class has its own course,
+exam year, members, hint limit, pause, dictation and evaluation settings. Learners
+join using expiring, rotatable invitations. Every learning operation checks current
+class membership. Teachers see aliases and aggregate activity, not learners' drafts.
+The admission code does not verify professional identity; distribute it through a
+trusted school administrator. One owner per class is supported; co-teaching is not.
+
+Passwords use salted scrypt hashes. Eight-hour login tokens are held in browser
+memory and hashed in SQLite. Refreshing signs out and loses unfinished drafts.
+Logout revokes the token. Administrators can reset a password with
+`python server/manage_accounts.py reset-password USERNAME`; this revokes existing
+sessions. There is no email recovery, school SSO, MFA or account deletion interface.
+
+## Curriculum scope
+
+The catalogue separates school grade from qualification and examination year:
+
+- Namibia: NSSCO Mathematics 6131 (Grades 10–11) and NSSCAS 8227 (Grade 12).
+- Cambridge: IGCSE Mathematics 0580 Core/Extended and AS/A Level Mathematics 9709,
+  with separate qualification routes.
+
+Only 2026/2027 examination years are enabled. Six original starter topics cover
+linear equations, proportion/percentages, Pythagoras, quadratics, differentiation
+and integration, restricted by course. This is **not a complete syllabus**.
+Cambridge advanced routes currently offer selected pure-mathematics revision;
+mechanics/statistics lessons are not supplied. The catalogue links official sources
+and explains AS pure-only progression restrictions. Teachers must review alignment.
+
+Starter lessons work without an AI provider. Optional custom questions use Groq
+and are labelled general AI support requiring teacher review. Retrieval uses exact
+course, examination year and topic metadata; it never falls back to the old,
+untagged curriculum store. Trusted administrators must curate tagged material.
+Shared uploads and the old unauthenticated answer endpoint are disabled.
 
 ## Run locally
 
-Use Python 3.11 and Node 22.12+ with pnpm 11.
+Use Python 3.11, Node 22.12+ and pnpm 11.
 
 ```sh
 python -m venv .venv
 source .venv/bin/activate
 pip install -r server/requirements.txt
-export GROQ_API_KEY=your-provider-key
-export STEMMATE_TEACHER_KEY=your-random-secret-at-least-24-characters
+export STEMMATE_TEACHER_INVITE='replace-with-a-random-secret-at-least-24-characters'
+export STEMMATE_ORIGINS=http://localhost:5173
+# Optional for custom questions: export GROQ_API_KEY=your-private-key
 cd server
 uvicorn main:app --host 127.0.0.1 --port 8000 --workers 1
 ```
 
-In another terminal:
+In another terminal run `pnpm install --frozen-lockfile` then `pnpm dev` from
+`stemmate-frontend`. `VITE_API_URL` defaults to http://localhost:8000.
+`STEMMATE_ACCOUNTS_DB` defaults to `server/private/accounts.sqlite3`.
+Back up this private database securely; never commit it. Use HTTPS when hosted.
+Use exactly one worker/instance: learning sessions and abuse limits are in memory.
 
-```sh
-cd stemmate-frontend
-pnpm install --frozen-lockfile
-pnpm dev
-```
+## Privacy and safeguards
 
-`VITE_API_URL` defaults to `http://localhost:8000`. `STEMMATE_ORIGINS` is a
-comma-separated allowlist (default `http://localhost:5173`). `GROQ_MODEL` defaults
-to `llama-3.3-70b-versatile`. Keep provider and teacher keys on the server. Use TLS
-for a hosted service. This PR does not deploy anything.
+Attempts, explanations and dictated answers stay in browser memory. The API
+receives an acknowledgement, not learner prose. Optional custom questions and
+selected curriculum excerpts go to Groq; provider data handling needs school review.
+Do not enter personal information. Generated plans expire after one hour and are
+purged within a minute; clearing a session deletes its plan immediately.
+Accounts, class membership and policies persist in SQLite. No audio is stored by
+STEMMate. Browser dictation may send audio to its speech provider; the interface
+explains this before opt-in. Dictation also requires class permission and browser
+permission. Transcripts are editable and never auto-submit. Local English voices
+read prompts only on request; text remains available throughout. Accent, language
+and real microphone compatibility require testing with intended learners.
 
-## Learning flow
+Evaluation defaults off and requires both class permission and learner opt-in.
+Only class event totals persist: no drafts, user IDs or event timestamps. Teacher
+previews are excluded; totals are suppressed below five enrolled learners.
+Suppression is not a guarantee of anonymity. Disabling evaluation clears totals.
+These counts are not research consent or evidence of learning; research with minors
+requires a separate approved protocol. School consent and retention policies must
+be settled before rollout. Infrastructure must avoid request-body/header logging.
 
-1. Predict / attempt before hints. “I am stuck” is a valid, accessible attempt.
-2. Up to three progressive hints, subject to the teacher's lower limit.
-3. Explain the reasoning, then compare it with a worked model explanation.
-4. Reflect and apply the idea to a different problem.
-5. Attempt another problem independently, without hints or earlier notes.
-6. Compare reasoning after submission; discuss uncertainty with a teacher.
+Age-appropriate prompts, bounded inputs and structured output validation support
+teacher supervision; they cannot guarantee model accuracy or safety. Reading support
+simplifies wording without changing the class course. The global 60 AI calls/hour
+and in-process authentication throttling are pilot safeguards, not production abuse
+protection. Review trusted proxy configuration and multi-instance limits before scaling.
 
-Direct explanation is always an accessible starting option and is available during
-supported stages. It is recorded as support used and does not advance the stage.
-It is withheld inside the independent check until submission. A separate tab or
-outside tool can still supply help: this is formative practice, not secure exam
-software. A short submission establishes an attempt, not its quality or mastery.
-No automated correctness or critical-thinking score is assigned.
+## Accessibility and equations
 
-## Teacher controls and privacy
+The interface targets WCAG 2.2 AA: labelled fields, keyboard navigation, skip link,
+visible focus, announced errors, large controls and narrow-screen reflow. Accessibility
+conformance has not been certified; assistive-technology testing with learners remains.
+Markdown mathematics uses KaTeX with local fonts and MathML, bounded expansion and
+untrusted commands disabled. Raw HTML, remote images and clickable response links
+are excluded. Malformed mathematics remains readable without crashing the page.
 
-Open **Teacher controls** with the deployment's secret key. Teachers can set the
-hint limit (0–3), pause AI generation / learning steps, enable optional anonymous
-activity counts, inspect counts and delete them. Clearing a learner session stays
-available during a pause. Controls and counts are in memory and reset on restart.
-Use exactly **one server worker** for this version. There is no classroom/teacher
-account system, roster, learner monitoring, or durable policy store yet.
-
-Learner attempts, explanations and reflections remain in React memory in the
-browser. The API receives only a boolean attempt acknowledgement. It stores no
-learner prose or chat transcript. Refreshing the page loses the local work.
-The topic and retrieved curriculum excerpts are sent to Groq to prepare a lesson;
-standalone direct explanations also send the topic. Provider retention policies
-must be reviewed by the school before use. Do not submit personal information.
-Generated plans may repeat parts of the topic. The server keeps these plans with
-random bearer tokens for up to one
-hour; expired plans become inaccessible immediately and are purged within the
-next minute (or on the next session operation). Clear-session deletes
-the plan immediately. Tokens travel in headers, never URLs or local storage.
-API responses use `Cache-Control: no-store`; no learner questions are logged by
-the application. Infrastructure must also avoid logging request bodies/headers.
-
-Evaluation is **off by default** and needs both a teacher setting and learner
-opt-in. Primary reading-level sessions never contribute counts. Counts include
-starts, hints, direct support and completed stages only, with no IDs, text,
-individual timestamps or grade bands. Disabling evaluation deletes counts. These
-are voluntary process totals, not research consent records or measures of learning.
-Use a separate approved research protocol for research with minors. Group totals
-can still be revealing in a very small classroom; avoid sharing them publicly.
-
-## Age-appropriate support and content
-
-Default to primary reading level without collecting birth dates. Prompts constrain
-language, examples, personal-data requests and unsafe experiments; reminders ask
-learners to seek adult help. Structured output is validated before a session is
-created. Model-generated tasks and hints still need teacher evaluation: prompt
-rules do not guarantee age suitability, mathematical accuracy, or that every hint
-withholds the final answer. Shared PDF uploads are disabled because the old route
-let anyone change everyone's retrieval corpus. Curriculum ingestion currently
-requires a trusted administrator working offline.
-
-Math uses Markdown + remark-math + KaTeX, with local fonts, HTML and MathML output,
-untrusted commands disabled and expansion bounded. Raw HTML, remote images and
-clickable links are not rendered. Malformed equations remain visible as errors
-instead of crashing the chat. Prompts specify `$...$` and `$$...$$` delimiters.
-
-## Verification
+## Checks
 
 ```sh
 pip install -r server/requirements-test.txt
@@ -106,96 +113,24 @@ pnpm lint
 pnpm test
 ```
 
-Backend tests replace the AI provider with a fixed lesson to verify server gates,
-privacy, teacher authorization, limits, isolation, expiry, direct support and errors.
-Renderer tests verify inline/display math, MathML, malformed math and unsafe content.
-Live provider / curriculum quality evaluation requires a configured Groq key.
+Tests cover role/class isolation, membership revocation, curriculum validation,
+server stage gates, scoped evaluation, hashed credentials, tagged retrieval, equation
+rendering and voice privacy. Browser checks cover separate teacher/learner sign-ins,
+multi-class creation/join, class hint settings, a complete guided lesson and mobile
+reflow. Live Groq quality, real microphones and screen-reader usability remain unverified.
 
-## Architecture notes and remaining work
+## Hosting and remaining work
 
-The original active application was `App → Home → Chat → /ask/`, which answered
-immediately and logged full questions. Existing account/history modules were
-unwired; their frontend imports referenced nonexistent APIs. This change removes
-the unreachable account UI, retains the dormant backend modules, and replaces the
-active chat with guided sessions. Existing databases/vector data are not migrated.
-The repository already tracks a SQLite database and a curriculum vector store;
-an administrator should audit those artifacts and their history for personal data
-before making the repository or dataset public. This change does not inspect or
-rewrite those data files.
+`render.yaml` prepares a static frontend and a Python service with a persistent
+account disk. The API configuration requires a paid Render plan: review pricing
+and approve provisioning first. Nothing has been deployed. Linking a Blueprint can
+trigger its initial deployment; later automatic deploys are disabled. Set the exact
+frontend HTTPS origin in `STEMMATE_ORIGINS` and API HTTPS URL in `VITE_API_URL`.
+Keep provider keys and the teacher invitation on the API only. Keep one instance.
 
-Before wider school rollout: add durable, authenticated class-scoped teacher
-policies; per-user abuse controls; a reviewed curriculum
-and safety benchmark across reading levels; assistive-technology user testing;
-and a properly consented study of delayed, unaided transfer. The current global
-limit of 60 AI generations per hour bounds provider calls for a small pilot but
-is neither a per-user quota nor protection against a determined attacker.
-
-## Your own GitHub repository and hosting
-
-The source repository is `xeilaaa/stemMate-namibia`; the connected GitHub account
-for this work is `JosseyMikka`. Fork the source into your own account to preserve
-its history. Apply the redesign branch there and open a pull request against your
-fork's `main`. The upstream repository does not need to be changed. Grant the
-GitHub integration access only to your intended repository, including permission
-to write repository contents, workflows and pull requests.
-
-GitHub stores the code and runs the checks. GitHub Pages cannot run the Python
-backend. The included `render.yaml` prepares both the React static site and the
-Python API in one Render account. It does not deploy anything by being committed.
-Creating a Render Blueprint does trigger initial hosting setup; do that only after
-reviewing the PR and approving deployment. Subsequent automatic deploys are off.
-
-When you are ready to create the Blueprint in your Render account:
-
-1. Connect your own GitHub fork and select the reviewed branch. Review the service
-   names first; rename them in the Blueprint if they conflict with existing services.
-2. Supply `GROQ_API_KEY` privately in Render. Never put it in GitHub or in any
-   frontend `VITE_` setting. Render generates the teacher key on the API service;
-   keep it private and use it only in the teacher panel.
-3. Set the API's `STEMMATE_ORIGINS` to the exact HTTPS address of your frontend,
-   without a trailing slash. Set the frontend's `VITE_API_URL` to the API's exact
-   HTTPS address. If the assigned addresses differ from your initial values,
-   correct these settings and manually redeploy the affected service.
-4. Keep the API at one instance and one worker because learning state is in memory.
-   The included free pilot configuration can sleep, restart and lose temporary
-   sessions. Check memory and model-download behavior before choosing a paid plan.
-5. Verify `/test`, start a guided lesson, test a direct explanation, and test teacher
-   hint limits/pause from the hosted frontend. Check CORS, equations and both phone
-   and desktop layouts with real Groq responses. Review the curriculum and provider
-   data handling before learners use it. Keep Blueprint Auto Sync off if configuration
-   changes should also require a manual action.
-
-This deployment configuration has been checked against Render's Blueprint fields;
-no hosted deployment or live provider validation has been performed. Existing
-curriculum vectors are included in the original repository checkout; anonymous
-uploads remain disabled. Audit existing tracked data before making another copy
-public. The original source has no root license file, so resolve permission and
-attribution before redistribution beyond the requested fork.
-
-References: [GitHub Pages limitations](https://docs.github.com/en/pages/getting-started-with-github-pages/creating-a-github-pages-site),
-[Render Blueprint fields](https://render.com/docs/blueprint-spec),
-[Render deployment controls](https://render.com/docs/deploys).
-
-## Optional voice support
-
-Learners can dictate topics and attempts or listen to the current prompt. Voice
-starts only after the learner enables it and clicks the microphone button; browser
-microphone permission is also required. The browser may send audio to its speech
-provider, disclosed before enabling input. STEMMate does not upload or save audio.
-Transcripts are editable and never auto-submit. Learner attempt transcripts retain
-the same browser-only handling as typed attempts. Topic transcripts are sent to the
-tutor only when the learner starts a lesson, like typed topics. Spoken prompts use
-local English synthesis voices only. Unsupported browsers, denied permissions and
-missing voices retain the full text workflow. Equations should be checked visually.
-Voice input is English for this pilot; accent/language accuracy needs learner testing.
-Switching learning stages stops voice input/output. Independent checks can read
-only the current question and dictate the learner’s own answer, without extra help.
-
-## Accessibility and multi-grade account design
-
-See [the classroom design](docs/ACCESSIBILITY-AND-CLASSROOM-DESIGN.md) for the WCAG
-2.2 AA target, Grades 10–12 pilot recommendation, teacher/learner roles and one
-teacher account managing several grade/subject classes. The interface now includes
-skip navigation, larger controls, in-flow teacher controls and improved focus/error
-handling. Production accounts and class-level permissions are a proposed next phase;
-the current teacher key still controls the deployment, not individual classes.
+The original app answered immediately through `/ask/`; dormant account/history
+modules and original tracked databases/vector files are not migrated. Audit those
+existing artifacts and their history for personal information before broader use.
+Review the original project's licensing before redistribution. Full curriculum
+coverage, teacher-reviewed AI benchmarks, school administration, account lifecycle
+and consent/retention workflows remain necessary before a wider school rollout.

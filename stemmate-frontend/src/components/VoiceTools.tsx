@@ -12,8 +12,8 @@ type VoiceWindow = Window & {
   webkitSpeechRecognition?: new () => Recognition;
 };
 
-export default function VoiceTools({onTranscript, readText, disabled = false}: {
-  onTranscript: (text: string) => void; readText?: string; disabled?: boolean;
+export default function VoiceTools({onTranscript, readText, disabled = false, allowDictation = true}: {
+  onTranscript: (text: string) => void; readText?: string; disabled?: boolean; allowDictation?: boolean;
 }) {
   const [allowed, setAllowed] = useState(false);
   const [listening, setListening] = useState(false);
@@ -35,8 +35,16 @@ export default function VoiceTools({onTranscript, readText, disabled = false}: {
     window.speechSynthesis?.cancel();
   }, []);
 
+  useEffect(() => {
+    if (!allowDictation && active.current) {
+      active.current.onresult = null;
+      active.current.abort();
+      active.current = null;
+    }
+  }, [allowDictation]);
+
   function dictate() {
-    if (disabled || !allowed || active.current) return;
+    if (disabled || !allowDictation || !allowed || active.current) return;
     const Constructor = (window as VoiceWindow).SpeechRecognition || (window as VoiceWindow).webkitSpeechRecognition;
     if (!Constructor) return;
     window.speechSynthesis?.cancel();
@@ -70,9 +78,10 @@ export default function VoiceTools({onTranscript, readText, disabled = false}: {
   }
   return <details className="voice-tools" onToggle={event => {if (!event.currentTarget.open) stop();}}><summary>Voice input and spoken prompts</summary>
     <p>Voice is optional. STEMMate does not record or store audio. Your browser may send your voice to its speech service for transcription. Ask a teacher or guardian before enabling the microphone. Keep personal information out of your speech.</p>
-    {supported ? <label className="check"><input type="checkbox" checked={allowed} disabled={disabled || listening} onChange={e => {stop(); setAllowed(e.target.checked);}} /> I understand how voice input works and want to enable it.</label>
-      : <p>This browser does not support voice input. You can type, or use your device’s keyboard dictation.</p>}
-    <button type="button" className="secondary" disabled={disabled || !supported || !allowed || listening} onClick={dictate}>Speak my response</button>
+    {!allowDictation && <p>Your teacher has disabled voice dictation for this class. Typing and local spoken prompts remain available.</p>}
+    {supported && allowDictation ? <label className="check"><input type="checkbox" checked={allowed} disabled={disabled || listening} onChange={e => {stop(); setAllowed(e.target.checked);}} /> I understand how voice input works and want to enable it.</label>
+      : !supported ? <p>This browser does not support voice input. You can type, or use your device’s keyboard dictation.</p> : null}
+    <button type="button" className="secondary" disabled={disabled || !allowDictation || !supported || !allowed || listening} onClick={dictate}>Speak my response</button>
     {readText && <button type="button" className="secondary" disabled={disabled || !('speechSynthesis' in window)} onClick={read}>Read the prompt aloud</button>}
     <button type="button" className="secondary" onClick={() => {stop(); setStatus('Voice stopped.');}}>Stop voice</button>
     <p role="status">{status}</p>

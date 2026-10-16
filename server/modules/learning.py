@@ -12,6 +12,8 @@ class Session:
     plan: dict
     band: str
     consent: bool
+    owner_id: int = 0
+    class_id: int = 0
     stage: str = 'attempt'
     hints: int = 0
     direct_used: bool = False
@@ -27,12 +29,12 @@ class LearningStore:
         now = monotonic()
         self.sessions = {k: v for k, v in self.sessions.items() if v.expires > now}
 
-    def create(self, plan, band, consent):
+    def create(self, plan, band, consent, owner_id=0, class_id=0):
         self.purge()
         if len(self.sessions) >= 500:
             raise ValueError('Learning sessions are busy. Please try later.')
         token = token_urlsafe(32)
-        self.sessions[token] = Session(plan, band, consent)
+        self.sessions[token] = Session(plan, band, consent, owner_id, class_id)
         return token
 
     def get(self, token):
