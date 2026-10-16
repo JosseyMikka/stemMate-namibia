@@ -1,6 +1,7 @@
-"""Explicit curriculum routing and original, inspectable Mathematics starter lessons."""
+"""Explicit curriculum routing and original, inspectable STEM starter lessons."""
 from copy import deepcopy
 from fastapi import HTTPException
+from modules.subject_lessons import SUBJECT_TOPICS, SAFETY_NOTICES, LESSONS as STEM_LESSONS
 
 NSSCO_SOURCE = 'https://www.nied.edu.na/assets/documents/02Syllabuses/05SeniorSecondary/Mathematics/NSSCO_Mathematics_syllabus.pdf'
 NSSCAS_SOURCE = 'https://www.nied.edu.na/assets/documents/02Syllabuses/05SeniorSecondary/Mathematics/8227_NSSCAS_Mathematics_final_updated_20_November_2020.pdf'
@@ -18,18 +19,60 @@ COURSES = [
 for route,label in [('as-pure','AS Level — Pure Mathematics'),('as-mechanics','AS Level — Pure Mathematics and Mechanics'),('as-statistics','AS Level — Pure Mathematics and Statistics'),('a-mechanics-statistics','A Level — Pure Mathematics, Mechanics and Statistics'),('a-statistics','A Level — Pure Mathematics and Statistics')]:
     COURSES.append({'id':'cam-'+route,'pathway':'Cambridge','qualification':label,'code':'9709','version':'2026–2027','grades':[10,11,12], 'source':ADVANCED_SOURCE,'topics':['quadratic','differentiate','integrate']})
 
+# Existing Mathematics IDs remain stable so stored classes need no migration.
+for course in COURSES:
+    course.update(subject='mathematics', subject_label='Mathematics', syllabus_subject='Mathematics', exam_years=[2026,2027])
+
+NA_CO = 'https://www.nied.edu.na/documents/syllabuses/seniorsecondary/Others/'
+NA_AS = 'https://www.nied.edu.na/documents/syllabuses/seniorsecondary/NSSCAS/'
+for subject, label, co_code, as_code, ig_code, adv_code in [
+    ('physics','Physics','6118','8225','0625','9702'),
+    ('chemistry','Chemistry','6117','8224','0620','9701'),
+    ('biology','Biology','6116','8223','0610','9700'),
+    ('computing','Computing','6134','8231','0478','9618'),
+]:
+    topic_ids = [t[0] for t in SUBJECT_TOPICS[subject]]
+    TOPICS.update(SUBJECT_TOPICS[subject])
+    common = dict(subject=subject,subject_label=label,topics=topic_ids)
+    for level, code, grades, source in [('nssco',co_code,[10,11],NA_CO),('nsscas',as_code,[12],NA_AS)]:
+        official = ('Computer Studies' if level=='nssco' else 'Computer Science') if subject=='computing' else label
+        COURSES.append({**common,'id':f'na-{level}-{subject}','pathway':'Namibia','qualification':level.upper(),
+                        'syllabus_subject':official,'code':code,'version':'NIED listed syllabus — confirm current edition with school',
+                        'grades':grades,'source':source,'exam_years':[2026,2027]})
+    ig_source = f'https://www.cambridgeinternational.org/programmes-and-qualifications/cambridge-igcse-{"computer-science" if subject=="computing" else subject}-{ig_code}/'
+    for route in (['core','extended'] if subject!='computing' else ['standard']):
+        COURSES.append({**common,'id':f'cam-igcse-{subject}-{route}','pathway':'Cambridge',
+                        'qualification':'IGCSE' + (' '+route.title() if route!='standard' else ''),
+                        'syllabus_subject':'Computer Science' if subject=='computing' else label,
+                        'code':ig_code,'version':'2026–2028','grades':[10,11,12],'source':ig_source,'exam_years':[2026,2027]})
+    adv_source = f'https://www.cambridgeinternational.org/programmes-and-qualifications/cambridge-international-as-and-a-level-{ "computer-science" if subject=="computing" else subject}-{adv_code}/'
+    for route in ['as','a']:
+        # Computing has different syllabus editions in 2026 and 2027; do not conflate them.
+        versions = [(f'-{year}',str(year) if year==2026 else '2027–2029',[year]) for year in [2026,2027]] if subject=='computing' else [('', '2025–2027',[2026,2027])]
+        for suffix,version,years in versions:
+            COURSES.append({**common,'id':f'cam-{route}-{subject}{suffix}','pathway':'Cambridge',
+                            'qualification':'AS Level' if route=='as' else 'A Level',
+                            'syllabus_subject':'Computer Science' if subject=='computing' else label,
+                            'code':adv_code,'version':version,'grades':[10,11,12],'source':adv_source,'exam_years':years})
+
 NOTICE = 'Original starter practice, not a complete syllabus or an official examination question. Teacher review is required before assessed use.'
 
 
 def catalogue():
-    return [{**course,'topics':[{'id':t,'label':TOPICS[t]} for t in course['topics']], 'exam_years':[2026,2027], 'coverage_notice':NOTICE + (' The pure-only AS route has no progression to A Level under this syllabus; confirm the route with your teacher.' if course['id']=='cam-as-pure' else '') + (' Only selected pure Mathematics revision topics are included; mechanics/statistics lessons are not included.' if course['code']=='9709' else '')} for course in COURSES]
+    return [{**deepcopy(course),'topics':[{'id':t,'label':TOPICS[t]} for t in course['topics']],
+             'safety_notice':SAFETY_NOTICES[course['subject']],
+             'coverage_notice':NOTICE +
+             (' The pure-only AS route has no progression to A Level under this syllabus; confirm the route with your teacher.' if course['id']=='cam-as-pure' else '') +
+             (' Only selected pure Mathematics revision topics are included; mechanics/statistics lessons are not included.' if course['code']=='9709' else '') +
+             (' Selected introductory and prerequisite revision only; advanced syllabus breadth and practical assessments are not covered.' if course['subject']!='mathematics' and course['qualification'] in ('AS Level','A Level','NSSCAS') else '')}
+            for course in COURSES]
 
 
 def course_for(course_id,grade,exam_year):
     for course in catalogue():
         if course['id']==course_id and grade in course['grades'] and exam_year in course['exam_years']:
             return course
-    raise HTTPException(422,'Choose a supported Mathematics pathway, grade and examination year (2026 or 2027).')
+    raise HTTPException(422,'Choose a supported subject, curriculum, grade and examination year (2026 or 2027).')
 
 
 LESSONS = {
@@ -77,6 +120,8 @@ LESSONS = {
  independent_explanation='An antiderivative is $x^3+C$. Evaluating at both limits cancels $C$, leaving $2^3-0^3=8$.')
 }
 
+
+LESSONS.update(STEM_LESSONS)
 
 def starter_plan(course,topic_id):
     if topic_id not in [topic['id'] for topic in course['topics']]:

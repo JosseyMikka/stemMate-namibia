@@ -225,4 +225,43 @@ class ClassroomTests(unittest.TestCase):
         self.start() # Starter practice remains available when provider calls are capped.
         self.assertEqual(self.client.get('/curricula').headers['cache-control'],'no-store')
 
+    def test_multi_subject_classes_and_full_guided_flow(self):
+        subjects={'mathematics','physics','chemistry','biology','computing'}
+        self.assertEqual({c['subject'] for c in catalogue()},subjects)
+        with patch('main.make_plan',side_effect=AssertionError('Starter must not call AI')):
+            for course in catalogue():
+                with self.subTest(course=course['id']):
+                    year=course['exam_years'][0]
+                    room_result=self.client.post('/classes',headers=self.teacher,json={'name':course['subject_label']+' pilot','grade':course['grades'][0],'course_id':course['id'],'exam_year':year})
+                    self.assertEqual(room_result.status_code,200,room_result.text)
+                    room=room_result.json()['classroom'];self.join(self.learner,room_result.json()['join_code'])
+                    self.assertEqual(room['course']['subject'],course['subject'])
+                    first=self.start(room,topic_id=course['topics'][0]['id'])
+                    self.assertNotIn('explanation',first)
+                    for stage in ['explain','feedback','apply','independent']:
+                        result=self.action().json();self.assertEqual(result['stage'],stage)
+                    self.assertEqual(result['hints'],[]);self.assertNotIn('explanation',result)
+                    self.assertEqual(self.action('direct').status_code,409)
+                    self.assertEqual(self.action().json()['stage'],'complete')
+                    self.assertEqual(self.client.delete('/learning/session',headers=self.headers).status_code,200)
+        rooms=self.client.get('/classes',headers=self.teacher).json()
+        self.assertEqual({r['course']['subject'] for r in rooms},subjects)
+        self.assertEqual({r['course']['pathway'] for r in rooms},{'Namibia','Cambridge'})
+
+    def test_subject_topic_year_and_policy_boundaries(self):
+        physics,code=self.create_class(self.teacher,10,'na-nssco-physics','Physics')
+        chemistry,chem_code=self.create_class(self.teacher,11,'na-nssco-chemistry','Chemistry')
+        self.join(self.learner,code);self.join(self.learner,chem_code)
+        self.assertEqual(self.client.post('/learning',headers=self.learner,json={'class_id':physics['id'],'topic_id':'atoms'}).status_code,422)
+        self.assertEqual(self.client.post('/classes',headers=self.teacher,json={'name':'Wrong year','grade':12,'course_id':'cam-as-computing-2026','exam_year':2027}).status_code,422)
+        self.assertEqual(self.client.post('/classes',headers=self.teacher,json={'name':'Wrong grade','grade':10,'course_id':'na-nsscas-biology','exam_year':2027}).status_code,422)
+        self.policy(physics,max_hints=0,voice_input_enabled=False,paused=True)
+        listed=self.client.get('/classes',headers=self.teacher).json()
+        other=next(r for r in listed if r['id']==chemistry['id'])
+        self.assertEqual(other['max_hints'],3);self.assertTrue(other['voice_input_enabled']);self.assertFalse(other['paused'])
+        with patch('main.make_plan',return_value=dict(LESSONS['atoms'])) as provider:
+            self.start(chemistry,topic_id='atoms',topic='Explain conservation.')
+            context=provider.call_args.args[2]
+            self.assertEqual(context['subject'],'chemistry');self.assertIn('do not mix',context['safety_notice'])
+
 if __name__=='__main__':unittest.main()

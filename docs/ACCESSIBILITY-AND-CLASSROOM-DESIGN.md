@@ -1,10 +1,10 @@
 # Classroom and accessibility design
 
-The pilot serves Mathematics learners in Grades 10–12, including shared-device,
+The pilot serves STEM learners in Grades 10–12, including shared-device,
 small-screen and limited-bandwidth contexts. School grade and examination pathway
 are separate choices. Reading support changes wording, not qualification content.
 
-A teacher signs in once and manages several classes. Each class has a name, grade,
+A teacher signs in once and manages several classes. Each class has a name, subject, grade,
 course, examination year, membership and policy. A learner sees only joined classes.
 Switching classes discards the previous on-screen lesson and drafts. Teachers can
 preview lessons without contributing evaluation counts. Invitations expire after
@@ -35,8 +35,8 @@ recovery are future work.
 
 ## Boundaries before school rollout
 
-The current six starter topics do not cover either complete curriculum. Advanced
-Cambridge routes contain selected pure-mathematics revision only. Teachers must
+The current 14 starter topics across five subjects do not cover either complete curriculum. Science uses supplied data only and Computing traces pseudocode without execution. Advanced
+Cambridge Mathematics routes contain selected pure-mathematics revision only. Advanced science and Computing courses offer selected introductory/prerequisite revision. Teachers must
 review task accuracy and alignment. Optional generated material needs separate
 provider and safety evaluation. Full syllabus mapping is not claimed.
 

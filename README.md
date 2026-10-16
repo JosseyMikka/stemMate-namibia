@@ -1,6 +1,6 @@
 # STEMMate — reasoning before answers
 
-React/TypeScript and FastAPI support Mathematics practice for Grades 10–12.
+React/TypeScript and FastAPI support Mathematics, Physics, Chemistry, Biology and Computing practice for Grades 10–12.
 Learners attempt, use progressive hints, explain, apply and complete an independent
 check. Direct explanations remain available during supported stages. Independent
 checks hide help until submission. This is formative practice, not secure examination
@@ -27,16 +27,24 @@ sessions. There is no email recovery, school SSO, MFA or account deletion interf
 
 The catalogue separates school grade from qualification and examination year:
 
-- Namibia: NSSCO Mathematics 6131 (Grades 10–11) and NSSCAS 8227 (Grade 12).
-- Cambridge: IGCSE Mathematics 0580 Core/Extended and AS/A Level Mathematics 9709,
-  with separate qualification routes.
+- Namibia: NSSCO (Grades 10–11) and NSSCAS (Grade 12), with subject-specific codes.
+  Computing uses the official names Computer Studies (NSSCO) and Computer Science (NSSCAS).
+- Cambridge: IGCSE Core/Extended sciences, IGCSE Computer Science, and separate
+  AS/A Level courses. Mathematics retains its existing route choices.
 
-Only 2026/2027 examination years are enabled. Six original starter topics cover
-linear equations, proportion/percentages, Pythagoras, quadratics, differentiation
-and integration, restricted by course. This is **not a complete syllabus**.
-Cambridge advanced routes currently offer selected pure-mathematics revision;
-mechanics/statistics lessons are not supplied. The catalogue links official sources
-and explains AS pure-only progression restrictions. Teachers must review alignment.
+Only 2026/2027 examination years are enabled. Cambridge advanced Computing has
+separate 2026 and 2027–2029 editions; selecting a year filters the valid courses.
+The new NIED entries link the official catalogue and ask schools to confirm editions.
+
+There are **14 original starter topics**, not complete syllabuses: six Mathematics
+activities plus motion, forces, atom conservation, moles, osmosis, enzymes, tracing/
+debugging and binary search. Selected introductory and prerequisite revision is
+available in advanced courses; it does not replace advanced content or practical
+assessment. Science activities use supplied fictional data and paper reasoning.
+Computing activities trace pseudocode without executing it. The interface displays
+subject-specific safeguards. Cambridge advanced Mathematics still offers selected
+pure-mathematics revision, without mechanics/statistics lessons. Teachers must review
+alignment before assessed use. See [curriculum sources](docs/STEM-CURRICULUM-SCOPE.md).
 
 Starter lessons work without an AI provider. Optional custom questions use Groq
 and are labelled general AI support requiring teacher review. Retrieval uses exact

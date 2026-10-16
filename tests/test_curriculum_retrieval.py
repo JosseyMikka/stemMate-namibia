@@ -18,12 +18,15 @@ class RetrievalTests(unittest.TestCase):
         loader=types.ModuleType('modules.load_vectorstore');loader.PERSIST_DIR='/test-only'
         modules={'langchain_groq':groq,'langchain_community':community,'langchain_community.vectorstores':vectors,'modules.embeddings':embeddings,'modules.load_vectorstore':loader}
         with patch.dict(sys.modules,modules):
-            result=model_reply('quadratics','secondary','guide',{'id':'cam-igcse-extended','exam_year':2027},'quadratic')
+            result=model_reply('quadratics','secondary','guide',{'id':'cam-igcse-extended','exam_year':2027,'subject':'mathematics','safety_notice':'TEST: paper only'},'quadratic')
         self.assertEqual(result,'A checked response')
         self.assertEqual(vectorstore.similarity_search.call_count,1)
         self.assertEqual(vectorstore.similarity_search.call_args.kwargs['filter'],{'$and':[{'course_id':'cam-igcse-extended'},{'exam_year':2027},{'topic_id':'quadratic'}]})
         messages=model.invoke.call_args.args[0]
         self.assertIn('requiring teacher review',messages[0][1])
+        self.assertIn('TEST: paper only',messages[0][1])
+        self.assertIn('selected class subject',messages[0][1])
+        self.assertNotIn('selected Mathematics topic',messages[0][1])
         self.assertIn('"curriculum_excerpts": ""',messages[1][1])
 
     def test_invalid_ai_structure_is_rejected(self):

@@ -13,4 +13,6 @@ assert.doesNotThrow(() => render('$\\notACommand{x}$'));
 assert.doesNotMatch(render('$\\href{javascript:alert(1)}{click}$'), /href="javascript/);
 assert.match(render('`$$x$$`'), /<code>\$\$x\$\$<\/code>/);
 assert.match(render('1. First\n2. Second'), /<ol>/);
+assert.match(render('$2H_2+O_2\\rightarrow2H_2O$'), /<math/);
+assert.match(render('```text\ntotal <- 0\nOUTPUT total\n```'), /<pre><code/);
 console.log('Math, accessibility markup, malformed input and content safety checks passed.');

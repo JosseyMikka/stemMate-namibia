@@ -2,7 +2,7 @@ const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
 let authToken: string | null = null;
 export function setAuthToken(token: string | null) {authToken = token;}
 export interface User {id: number; username: string; role: 'teacher' | 'learner'}
-export interface Course {id: string; pathway: string; qualification: string; code: string; version: string; grades: number[]; exam_years: number[]; source: string; topics: {id: string; label: string}[]; coverage_notice: string}
+export interface Course {subject: string; subject_label: string; syllabus_subject: string; safety_notice: string; id: string; pathway: string; qualification: string; code: string; version: string; grades: number[]; exam_years: number[]; source: string; topics: {id: string; label: string}[]; coverage_notice: string}
 export interface TeacherPolicy {max_hints: number; paused: boolean; evaluation_enabled: boolean; voice_input_enabled: boolean}
 export interface Classroom extends TeacherPolicy {id: number; name: string; grade: number; course_id: string; exam_year: number; course: Course}
 export interface Lesson {

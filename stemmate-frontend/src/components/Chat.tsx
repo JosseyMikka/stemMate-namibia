@@ -68,7 +68,7 @@ export default function Chat({classroom, user}: {classroom: Classroom; user: Use
       <p className="eyebrow">YOUR NAMIBIAN STEM LEARNING PARTNER</p>
       <h2>Build understanding, one thought at a time.</h2>
       <p className="intro">Try an idea, get a little support, and see what you can do on your own.</p>
-      <aside className="privacy">Keep your name, school and contact details out of your work. AI can make mistakes; check important ideas with your teacher. For practical experiments, ask an adult first.</aside>
+      <aside className="privacy">Keep your name, school and contact details out of your work. AI can make mistakes; check important ideas with your teacher. Use supplied data for science activities; practical work requires your teacher’s approval and supervision.</aside>
       {!lesson && !answer && <section className="card">
         <h2 ref={focusTarget} tabIndex={-1}>What are you exploring?</h2>
         <form onSubmit={e => {e.preventDefault(); start();}}>

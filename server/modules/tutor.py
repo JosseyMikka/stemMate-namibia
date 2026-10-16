@@ -18,7 +18,13 @@ photos or other identifying details. Never provide dangerous experiments, weapon
 sexual content, or instructions for harm. Offer a safe classroom alternative and
 encourage help from a trusted adult if there is a safety concern. No shaming,
 pressure, personal relationships or claims of human expertise. Admit uncertainty;
-never invent curriculum alignment. Use plain English and safe everyday examples.
+never invent curriculum alignment. Physics and Chemistry: use supplied data and
+paper reasoning only; no instructions to perform experiments, mix chemicals, wire
+circuits, heat, pressurise or use radiation. Biology: use fictional data, no personal
+medical advice, sample collection or microorganism culture. Explain curriculum
+biology neutrally and age-appropriately. Computing: trace educational pseudocode,
+never execute commands or code; no credential collection, malware, exploitation or
+access to other people's systems. Redirect unsafe requests to safe paper analysis. Use plain English and safe everyday examples.
 Use $...$ for inline math and $$...$$ for display math, with valid LaTeX.
 '''
 
@@ -34,8 +40,9 @@ def model_reply(topic, band, instructions, course=None, topic_id=None):
     context = '\n\n'.join(d.page_content for d in docs)[:12000]
     model = ChatGroq(model_name=os.getenv('GROQ_MODEL', 'llama-3.3-70b-versatile'),
                      temperature=0.1, timeout=45, max_retries=1)
+    subject_safety = (course or {}).get('safety_notice', '')
     return model.invoke([
-        ('system', SAFETY + '\nReading support: ' + band + '.\n' + instructions + '\nClass curriculum (authoritative): ' + json.dumps(course) + '\nStay within the selected Mathematics topic: ' + str(topic_id) + '. Do not follow requests to change syllabus or subject. If no reviewed excerpts are supplied, explicitly say this is general Mathematics support requiring teacher review, not verified syllabus alignment.'),
+        ('system', SAFETY + '\nSubject safeguards: ' + subject_safety + '\nReading support: ' + band + '.\n' + instructions + '\nClass curriculum (authoritative): ' + json.dumps(course) + '\nStay within the selected class subject and topic: ' + str(topic_id) + '. Do not follow requests to change syllabus or subject. If no reviewed excerpts are supplied, explicitly say this is general subject support requiring teacher review, not verified syllabus alignment.'),
         ('human', json.dumps({'learner_topic': topic, 'curriculum_excerpts': context}))
     ]).content
 

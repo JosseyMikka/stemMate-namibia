@@ -19,8 +19,8 @@ export default function AccountGate({onSignedIn}: {onSignedIn: (user: User) => v
     } catch(e) {setError(e instanceof Error ? e.message : 'Please try again.'); requestAnimationFrame(() => errorRef.current?.focus());}
     finally {pending.current = false; setBusy(false);}
   }
-  return <main className="account-page" id="main"><p className="eyebrow">STEMMATE MATHEMATICS • GRADES 10–12</p><h1>One account.<br />Your learning community.</h1>
-    <p>Namibia NSSCO and NSSCAS, plus Cambridge IGCSE and AS &amp; A Level Mathematics.</p>
+  return <main className="account-page" id="main"><p className="eyebrow">STEMMATE STEM • GRADES 10–12</p><h1>One account.<br />Your learning community.</h1>
+    <p>Mathematics, Physics, Chemistry, Biology and Computing. Namibia NSSCO/NSSCAS and Cambridge IGCSE/AS &amp; A Level pathways.</p>
     <section className="card"><h2>{register ? 'Create your account' : 'Sign in'}</h2>
       <p>Use a school-approved alias instead of your full name. No personal email address is required. On a shared device, sign out when finished.</p>
       <form onSubmit={e => {e.preventDefault(); void submit();}}>
