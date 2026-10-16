@@ -5,6 +5,7 @@ function MessageContent({ content }: {content: string}) {
   return <Suspense fallback={<p role="status">Loading learning material…</p>}><MathContent content={content} /></Suspense>;
 }
 import TeacherControls from './TeacherControls';
+import VoiceTools from './VoiceTools';
 
 const stages = ['attempt', 'explain', 'feedback', 'apply', 'independent', 'complete'];
 const labels: Record<string, string> = {
@@ -78,6 +79,7 @@ export default function Chat() {
           </div></fieldset>
           <label htmlFor="band">Reading level</label><select id="band" value={band} disabled={busy} onChange={e => setBand(e.target.value)}><option value="primary">Primary — short, concrete steps</option><option value="secondary">Secondary — build the connections</option><option value="senior">Senior secondary — deeper reasoning</option></select>
           <label htmlFor="topic">Your STEM topic or question</label><textarea id="topic" value={topic} maxLength={2000} required disabled={busy} onChange={e => setTopic(e.target.value)} placeholder="For example: How do I solve a linear equation?" />
+          <VoiceTools key={mode + band + String(busy)} disabled={busy} onTranscript={text => setTopic(previous => `${previous}${previous ? ' ' : ''}${text}`.slice(0, 2000))} />
           {mode === 'guided' && band !== 'primary' && <label className="check"><input type="checkbox" checked={consent} disabled={busy} onChange={e => setConsent(e.target.checked)} /> Share anonymous activity counts if my teacher enables evaluation. Optional; no answers or personal details are included. Ask your teacher or guardian before opting in.</label>}
           <button disabled={busy || !topic.trim()}>{busy ? 'Preparing…' : mode === 'guided' ? 'Start thinking →' : 'Show an explanation'}</button>
         </form>
@@ -100,6 +102,7 @@ export default function Chat() {
             <h3>Independent check: compare after your attempt</h3><MessageContent content={lesson.independent ?? ''} /><MessageContent content={lesson.independent_explanation ?? ''} />
             <p>Can you explain every step without looking? Ask your teacher to review uncertain answers and try another problem later without help.</p>
           </> : <form onSubmit={e => {e.preventDefault(); act('continue');}}>
+            <VoiceTools key={lesson.stage + String(busy)} disabled={busy} readText={prompt} onTranscript={text => setWork(previous => `${previous}${previous ? ' ' : ''}${text}`.slice(0, 4000))} />
             <label htmlFor="work">{lesson.stage === 'feedback' ? 'Your reflection (optional)' : 'Your thinking'}</label>
             <textarea id="work" value={work} maxLength={4000} disabled={busy} required={lesson.stage !== 'feedback'} onChange={e => setWork(e.target.value)} placeholder="Write a short attempt, explain your idea, or say where you are stuck." />
             <button disabled={busy || (lesson.stage !== 'feedback' && !work.trim())}>{busy ? 'Saving step…' : lesson.stage === 'independent' ? 'Submit attempt and compare' : 'Continue →'}</button>
@@ -111,7 +114,7 @@ export default function Chat() {
       {notes.length > 0 && lesson?.stage !== 'independent' && <details className="card"><summary>Your thinking in this browser</summary>{notes.map((n, i) => <div key={i}><h3>{n.label}</h3><p className="learner-text">{n.text}</p></div>)}</details>}
       {(lesson || answer) && <button className="secondary" disabled={busy} onClick={reset}>Clear this session and start again</button>}
       {busy && <p role="status">Working on your request…</p>}{error && <p role="alert" className="error">{error}</p>}
-      <footer>Your topic is sent to our AI provider with relevant learning material. Your written attempts stay in this browser. Temporary lesson plans expire after one hour; clearing a session deletes its plan. No chat history is saved.</footer>
+      <footer>Your topic is sent to our AI provider with relevant learning material. Your written attempts stay in this browser. Optional voice input may use your browser’s external transcription service. Temporary lesson plans expire after one hour; clearing a session deletes its plan. No chat history is saved.</footer>
     </main>
   </div>;
 }

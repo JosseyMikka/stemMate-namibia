@@ -175,3 +175,18 @@ attribution before redistribution beyond the requested fork.
 References: [GitHub Pages limitations](https://docs.github.com/en/pages/getting-started-with-github-pages/creating-a-github-pages-site),
 [Render Blueprint fields](https://render.com/docs/blueprint-spec),
 [Render deployment controls](https://render.com/docs/deploys).
+
+## Optional voice support
+
+Learners can dictate topics and attempts or listen to the current prompt. Voice
+starts only after the learner enables it and clicks the microphone button; browser
+microphone permission is also required. The browser may send audio to its speech
+provider, disclosed before enabling input. STEMMate does not upload or save audio.
+Transcripts are editable and never auto-submit. Learner attempt transcripts retain
+the same browser-only handling as typed attempts. Topic transcripts are sent to the
+tutor only when the learner starts a lesson, like typed topics. Spoken prompts use
+local English synthesis voices only. Unsupported browsers, denied permissions and
+missing voices retain the full text workflow. Equations should be checked visually.
+Voice input is English for this pilot; accent/language accuracy needs learner testing.
+Switching learning stages stops voice input/output. Independent checks can read
+only the current question and dictate the learner’s own answer, without extra help.
