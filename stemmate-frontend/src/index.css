@@ -158,3 +158,23 @@ header{align-items:flex-start}
 main{margin-top:30px}
 .progress li{min-width:90px}
 }
+
+/* WCAG 2.2 AA design target: clear keyboard navigation, reflow and touch access. */
+.skip-link {position:absolute;left:1rem;top:-6rem;background:#fff;color:#14594c;padding:1rem;z-index:20;border:2px solid #14594c;}
+.skip-link:focus {top:1rem;}
+button, select, summary {min-height:44px;}
+button {min-width:44px;}
+summary {display:list-item;padding:.6rem .2rem;}
+input[type=checkbox], input[type=radio] {min-width:20px;min-height:20px;}
+.check {min-height:44px;padding:.4rem 0;}
+input:not([type=checkbox]):not([type=radio]), select, textarea {border-color:#617b6e;}
+header {flex-wrap:wrap;}
+.teacher {margin-left:auto;}
+.teacher[open] {flex-basis:100%;order:2;}
+.teacher-panel {position:static;width:100%;margin-top:.5rem;box-shadow:none;}
+main, .card, .mode-options label {min-width:0;}
+main:focus {outline:none;}
+.learner-text, .teacher-panel, footer {overflow-wrap:anywhere;}
+@media(max-width:360px) {header {gap:.5rem;} .teacher {margin-left:0;flex-basis:100%;} .card {padding:16px;}}
+@media(prefers-reduced-motion:reduce) {*, *::before, *::after {scroll-behavior:auto!important;animation:none!important;transition:none!important;}}
+@media(forced-colors:active) {button, input, textarea, select, .hint, .card {border:1px solid CanvasText;} .progress .current {border-top:4px solid Highlight;}}

@@ -26,12 +26,13 @@ export default function Chat() {
   const [error, setError] = useState('');
   const inFlight = useRef(false);
   const focusTarget = useRef<HTMLHeadingElement>(null);
+  const errorTarget = useRef<HTMLParagraphElement>(null);
 
   async function run(task: () => Promise<void>) {
     if (inFlight.current) return;
     inFlight.current = true; setBusy(true); setError('');
     try { await task(); requestAnimationFrame(() => focusTarget.current?.focus()); }
-    catch (e) { setError(e instanceof Error ? e.message : 'Please try again.'); }
+    catch (e) { setError(e instanceof Error ? e.message : 'Please try again.'); requestAnimationFrame(() => errorTarget.current?.focus()); }
     finally { inFlight.current = false; setBusy(false); }
   }
   function start() {
@@ -64,8 +65,9 @@ export default function Chat() {
   }
   const prompt = lesson?.stage === 'apply' ? lesson.application : lesson?.stage === 'independent' ? lesson.independent : lesson?.challenge;
   return <div className="shell">
+    <a className="skip-link" href="#main">Skip to learning</a>
     <header><a className="brand" href="#main"><span className="brand-icon">SM</span><span>STEMMate<small>Think it through. Make it yours.</small></span></a><TeacherControls /></header>
-    <main id="main">
+    <main id="main" tabIndex={-1}>
       <p className="eyebrow">YOUR NAMIBIAN STEM LEARNING PARTNER</p>
       <h1>Build understanding,<br /><span>one thought at a time.</span></h1>
       <p className="intro">Try an idea, get a little support, and see what you can do on your own.</p>
@@ -78,7 +80,7 @@ export default function Chat() {
             <label><input type="radio" name="mode" value="direct" checked={mode === 'direct'} onChange={() => setMode('direct')} /> Explain it directly <small>Accessible, step-by-step support when you need it</small></label>
           </div></fieldset>
           <label htmlFor="band">Reading level</label><select id="band" value={band} disabled={busy} onChange={e => setBand(e.target.value)}><option value="primary">Primary — short, concrete steps</option><option value="secondary">Secondary — build the connections</option><option value="senior">Senior secondary — deeper reasoning</option></select>
-          <label htmlFor="topic">Your STEM topic or question</label><textarea id="topic" value={topic} maxLength={2000} required disabled={busy} onChange={e => setTopic(e.target.value)} placeholder="For example: How do I solve a linear equation?" />
+          <label htmlFor="topic">Your STEM topic or question (required)</label><textarea id="topic" value={topic} maxLength={2000} required disabled={busy} onChange={e => setTopic(e.target.value)} placeholder="For example: How do I solve a linear equation?" />
           <VoiceTools key={mode + band + String(busy)} disabled={busy} onTranscript={text => setTopic(previous => `${previous}${previous ? ' ' : ''}${text}`.slice(0, 2000))} />
           {mode === 'guided' && band !== 'primary' && <label className="check"><input type="checkbox" checked={consent} disabled={busy} onChange={e => setConsent(e.target.checked)} /> Share anonymous activity counts if my teacher enables evaluation. Optional; no answers or personal details are included. Ask your teacher or guardian before opting in.</label>}
           <button disabled={busy || !topic.trim()}>{busy ? 'Preparing…' : mode === 'guided' ? 'Start thinking →' : 'Show an explanation'}</button>
@@ -103,7 +105,7 @@ export default function Chat() {
             <p>Can you explain every step without looking? Ask your teacher to review uncertain answers and try another problem later without help.</p>
           </> : <form onSubmit={e => {e.preventDefault(); act('continue');}}>
             <VoiceTools key={lesson.stage + String(busy)} disabled={busy} readText={prompt} onTranscript={text => setWork(previous => `${previous}${previous ? ' ' : ''}${text}`.slice(0, 4000))} />
-            <label htmlFor="work">{lesson.stage === 'feedback' ? 'Your reflection (optional)' : 'Your thinking'}</label>
+            <label htmlFor="work">{lesson.stage === 'feedback' ? 'Your reflection (optional)' : 'Your thinking (required)'}</label>
             <textarea id="work" value={work} maxLength={4000} disabled={busy} required={lesson.stage !== 'feedback'} onChange={e => setWork(e.target.value)} placeholder="Write a short attempt, explain your idea, or say where you are stuck." />
             <button disabled={busy || (lesson.stage !== 'feedback' && !work.trim())}>{busy ? 'Saving step…' : lesson.stage === 'independent' ? 'Submit attempt and compare' : 'Continue →'}</button>
           </form>}
@@ -113,7 +115,7 @@ export default function Chat() {
       {answer && <section className="card"><h2 ref={!lesson ? focusTarget : undefined} tabIndex={-1}>Direct explanation</h2><p>Use this support, then try explaining the idea yourself. Reading an answer is different from doing it independently.</p><MessageContent content={answer} /></section>}
       {notes.length > 0 && lesson?.stage !== 'independent' && <details className="card"><summary>Your thinking in this browser</summary>{notes.map((n, i) => <div key={i}><h3>{n.label}</h3><p className="learner-text">{n.text}</p></div>)}</details>}
       {(lesson || answer) && <button className="secondary" disabled={busy} onClick={reset}>Clear this session and start again</button>}
-      {busy && <p role="status">Working on your request…</p>}{error && <p role="alert" className="error">{error}</p>}
+      {busy && <p role="status" aria-live="polite">Working on your request…</p>}{error && <p ref={errorTarget} tabIndex={-1} role="alert" className="error">{error}</p>}
       <footer>Your topic is sent to our AI provider with relevant learning material. Your written attempts stay in this browser. Optional voice input may use your browser’s external transcription service. Temporary lesson plans expire after one hour; clearing a session deletes its plan. No chat history is saved.</footer>
     </main>
   </div>;

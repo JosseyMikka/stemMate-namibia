@@ -12,7 +12,7 @@ export default function TeacherControls() {
   }
   return <details className="teacher"><summary>Teacher controls</summary><div className="teacher-panel">
     <p>Deployment-wide controls. Get the teacher key from your administrator. Changes reset when the server restarts.</p>
-    <label htmlFor="teacher-key">Teacher key</label><input id="teacher-key" type="password" autoComplete="off" value={key} onChange={e => setKey(e.target.value)} />
+    <label htmlFor="teacher-key">Teacher key (required)</label><input id="teacher-key" type="password" autoComplete="current-password" value={key} onChange={e => setKey(e.target.value)} />
     <button disabled={busy || !key} onClick={() => void perform(async () => {
       await request('/teacher/evaluation', 'GET', undefined, key);
       setPolicy(await request<TeacherPolicy>('/policy'));

@@ -190,3 +190,12 @@ missing voices retain the full text workflow. Equations should be checked visual
 Voice input is English for this pilot; accent/language accuracy needs learner testing.
 Switching learning stages stops voice input/output. Independent checks can read
 only the current question and dictate the learner’s own answer, without extra help.
+
+## Accessibility and multi-grade account design
+
+See [the classroom design](docs/ACCESSIBILITY-AND-CLASSROOM-DESIGN.md) for the WCAG
+2.2 AA target, Grades 10–12 pilot recommendation, teacher/learner roles and one
+teacher account managing several grade/subject classes. The interface now includes
+skip navigation, larger controls, in-flow teacher controls and improved focus/error
+handling. Production accounts and class-level permissions are a proposed next phase;
+the current teacher key still controls the deployment, not individual classes.
