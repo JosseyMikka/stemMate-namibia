@@ -2,10 +2,12 @@ import {useCallback, useEffect, useRef, useState} from 'react';
 import {request, type User, type Course, type Classroom} from '../api/stemmateApi';
 import TeacherControls from './TeacherControls';
 import Chat from './Chat';
+import ProjectPathway from './ProjectPathway';
 export default function ClassroomHub({user,onSignOut}: {user:User;onSignOut:()=>void}) {
   const [classes,setClasses]=useState<Classroom[]>([]);
   const [courses,setCourses]=useState<Course[]>([]);
   const [active,setActive]=useState<number|null>(null);
+  const [pathway,setPathway]=useState('practice');
   const [name,setName]=useState('');
   const [grade,setGrade]=useState(10);
   const [subject,setSubject]=useState('mathematics');
@@ -47,7 +49,7 @@ export default function ClassroomHub({user,onSignOut}: {user:User;onSignOut:()=>
       <p>{user.role==='teacher'?'Use one account for all your subjects and grades. Each class has its own syllabus, learners and settings.':'Join with a code from your teacher, then choose your class. Your classmates cannot see your work.'}</p>
       {loading?<p role="status">Loading your classes…</p>:<>
         <button className="secondary" disabled={busy} onClick={()=>void perform(async()=>{await refresh();setMessage('Class list refreshed.');})}>Refresh classes</button>
-        <div className="class-grid">{classes.map(c=><button key={c.id} className={active===c.id?'class-card selected':'class-card'} aria-pressed={active===c.id} onClick={()=>{setActive(c.id);setMessage('');requestAnimationFrame(()=>activityRef.current?.focus());}}><strong>{c.name}</strong><span>Grade {c.grade} · {c.course.pathway}</span><span>{c.course.qualification} · {c.course.syllabus_subject} {c.course.code}</span><span>Examination: {c.exam_year}</span></button>)}</div>
+        <div className="class-grid">{classes.map(c=><button key={c.id} className={active===c.id?'class-card selected':'class-card'} aria-pressed={active===c.id} onClick={()=>{setActive(c.id);setPathway('practice');setMessage('');requestAnimationFrame(()=>activityRef.current?.focus());}}><strong>{c.name}</strong><span>Grade {c.grade} · {c.course.pathway}</span><span>{c.course.qualification} · {c.course.syllabus_subject} {c.course.code}</span><span>Examination: {c.exam_year}</span></button>)}</div>
         {classes.length===0 && <p>No classes yet. {user.role==='teacher'?'Create your first class below.':'Ask your teacher for a class code.'}</p>}
       </>}
       <details className="card"><summary>{user.role==='teacher'?'Create a subject class':'Join a class'}</summary>
@@ -72,7 +74,8 @@ export default function ClassroomHub({user,onSignOut}: {user:User;onSignOut:()=>
         <p><a href={classroom.course.source} target="_blank" rel="noreferrer">Open the official syllabus source (new tab)</a></p>
         {user.role==='teacher'&&<><TeacherControls key={classroom.id} classroom={classroom} onUpdate={updated=>setClasses(items=>items.map(c=>c.id===updated.id?updated:c))} /><p>Teacher preview: your practice does not contribute to learner activity counts.</p></>}
         {user.role==='learner'&&<button className="text-button" disabled={busy} onClick={()=>void perform(async()=>{await request(`/classes/${classroom.id}/members/${user.id}`,'DELETE');setActive(null);await refresh();setMessage('You left the class. Your teacher can invite you again.');})}>Leave this class</button>}
-        <Chat key={classroom.id} classroom={classroom} user={user} />
+        <fieldset><legend>Learning pathway</legend><p>Export project notes before switching; unfinished work is held only in this browser view.</p><label><input type="radio" name="pathway" checked={pathway==='practice'} onChange={()=>setPathway('practice')}/> Guided practice</label><label><input type="radio" name="pathway" checked={pathway==='project'} onChange={()=>setPathway('project')}/> Teacher-led project</label></fieldset>
+        {pathway==='practice'?<Chat key={classroom.id} classroom={classroom} user={user}/>:<ProjectPathway key={classroom.id} classroom={classroom} user={user}/>}
       </section>}
     </main></div>;
 }

@@ -264,4 +264,38 @@ class ClassroomTests(unittest.TestCase):
             context=provider.call_args.args[2]
             self.assertEqual(context['subject'],'chemistry');self.assertIn('do not mix',context['safety_notice'])
 
+    def test_project_briefs_are_teacher_owned_and_class_scoped(self):
+        brief={'title':'Paper model','question':'How can we explain equality?', 'brief':'Make and test a paper model, then revise it.', 'artifact':'A revised paper balance model', 'criteria':'Accuracy, evidence and independent explanation', 'resources':'Paper, fictional data and teacher checkpoints', 'topic_id':'linear','bloom':['understand','analyse','create'],'published':False,'revision':0}
+        route=f"/classes/{self.room['id']}/projects"
+        self.assertEqual(self.client.post(route,headers=self.learner,json=brief).status_code,403)
+        created=self.client.post(route,headers=self.teacher,json=brief)
+        self.assertEqual(created.status_code,200,created.text);project=created.json()
+        self.assertEqual(self.client.get(route,headers=self.learner).json(),[])
+        other=self.register('project_stranger','teacher')
+        self.assertEqual(self.client.get(route,headers=other).status_code,403)
+        self.assertEqual(self.client.put(route+f"/{project['id']}",headers=other,json={**project,'published':True}).status_code,403)
+        published=self.client.put(route+f"/{project['id']}",headers=self.teacher,json={**project,'published':True})
+        self.assertEqual(published.status_code,200);self.assertEqual(published.json()['revision'],2)
+        self.assertEqual(len(self.client.get(route,headers=self.learner).json()),1)
+        self.assertEqual(self.client.put(route+f"/{project['id']}",headers=self.teacher,json=project).status_code,409)
+        second,_=self.create_class(self.teacher)
+        self.assertEqual(self.client.put(f"/classes/{second['id']}/projects/{project['id']}",headers=self.teacher,json=published.json()).status_code,404)
+        withdrawn=self.client.put(route+f"/{project['id']}",headers=self.teacher,json={**published.json(),'published':False})
+        self.assertEqual(withdrawn.status_code,200)
+        self.assertEqual(self.client.get(route,headers=self.learner).json(),[])
+        learner_id=self.client.get('/auth/me',headers=self.learner).json()['id']
+        self.client.delete(f"/classes/{self.room['id']}/members/{learner_id}",headers=self.teacher)
+        self.assertEqual(self.client.get(route,headers=self.learner).status_code,403)
+
+    def test_project_validation_and_existing_database_upgrade(self):
+        route=f"/classes/{self.room['id']}/projects"
+        brief={'title':'New project','question':'How could we explain this idea?', 'brief':'Make a model and evaluate evidence with your teacher.', 'artifact':'A model and revision log', 'criteria':'Evidence and individual explanation', 'resources':'Paper and supplied data', 'topic_id':'linear','bloom':['create'],'published':False}
+        for change in [{'bloom':[]},{'bloom':['mastery']},{'topic_id':'atoms'},{'brief':' '*20},{'resources':'x'*2001}]:
+            self.assertEqual(self.client.post(route,headers=self.teacher,json={**brief,**change}).status_code,422)
+        # Reopening an existing account DB adds the new project table without losing users/classes.
+        with accounts.db() as connection:
+            self.assertEqual(connection.execute('SELECT COUNT(*) FROM accounts').fetchone()[0],2)
+            self.assertEqual(connection.execute('SELECT COUNT(*) FROM projects').fetchone()[0],0)
+        self.assertEqual(self.client.post(route,headers=self.teacher,json=brief).status_code,200)
+
 if __name__=='__main__':unittest.main()

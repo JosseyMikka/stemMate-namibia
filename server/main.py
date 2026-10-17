@@ -13,7 +13,7 @@ from typing import Literal
 from starlette.concurrency import run_in_threadpool
 from modules.learning import LearningStore, visible, advance
 from modules.tutor import make_plan, direct_explanation
-from modules import accounts
+from modules import accounts, projects
 from modules.curricula import catalogue, starter_plan
 
 store = LearningStore()
@@ -47,6 +47,7 @@ app.add_middleware(CORSMiddleware,
     allow_origins=os.getenv('STEMMATE_ORIGINS', 'http://localhost:5173').split(','),
     allow_methods=['GET','POST','PUT','DELETE'], allow_headers=['Content-Type','Authorization','X-Learning-Token'])
 app.include_router(accounts.router)
+app.include_router(projects.router)
 
 @app.middleware('http')
 async def privacy_and_limits(request:Request, call_next):

@@ -13,6 +13,10 @@ from modules.curricula import course_for
 
 router = APIRouter()
 SCHEMA = '''
+CREATE TABLE IF NOT EXISTS projects (
+ id INTEGER PRIMARY KEY, class_id INTEGER NOT NULL REFERENCES classes(id),
+ body TEXT NOT NULL, revision INTEGER NOT NULL, updated REAL NOT NULL);
+
 CREATE TABLE IF NOT EXISTS accounts (
  id INTEGER PRIMARY KEY, username TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL,
  role TEXT NOT NULL CHECK(role IN ('teacher','learner')));

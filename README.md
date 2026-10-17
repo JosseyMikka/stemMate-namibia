@@ -142,3 +142,28 @@ existing artifacts and their history for personal information before broader use
 Review the original project's licensing before redistribution. Full curriculum
 coverage, teacher-reviewed AI benchmarks, school administration, account lifecycle
 and consent/retention workflows remain necessary before a wider school rollout.
+
+## Teacher-led projects
+
+Each class now offers guided practice or a teacher-led project pathway. Teachers
+adapt a subject starter, set a driving question, artifact, resources/checkpoints,
+success criteria and intended Bloom objectives, then save a private draft or share
+it with enrolled learners. Briefs persist in the private accounts database. Updates
+use revision checks; teachers can withdraw a brief. Refresh the project list to see
+changes. Withdrawal cannot erase copies already viewed or exported.
+
+Projects span investigation, design choice, making, testing, critique/revision,
+sharing/defence and an individual independent check. Learners make and share the
+actual artifact in the teacher-approved setting; the app is a scaffold and local
+notebook, not a maker environment, collaboration service or submission/marking system.
+The teacher supplies a fresh independent question and later unaided transfer check.
+Bloom labels describe intended thinking, not measured attainment or a fixed ladder.
+Teachers must supply authentic context, sustained inquiry time and suitable materials;
+merely completing the notebook does not constitute project-based learning.
+
+Notebooks stay in browser memory; switching pathways/projects/classes or refreshing
+loses unfinished writing. Save a resumable notebook file to continue next lesson, or export text/use the copyable fallback before leaving. Resume files are validated and processed locally for the same project version, never uploaded.
+Exports include the brief and learner evidence and need private handling. Earlier
+entries, copy and export are withheld during the independent check. These are local
+formative gates, not secure exam controls. No notebook text goes to the server or AI,
+and no learner progress dashboard or automatic Bloom/mastery score is created.
