@@ -298,4 +298,80 @@ class ClassroomTests(unittest.TestCase):
             self.assertEqual(connection.execute('SELECT COUNT(*) FROM projects').fetchone()[0],0)
         self.assertEqual(self.client.post(route,headers=self.teacher,json=brief).status_code,200)
 
+    def submission_fixture(self):
+        brief={'title':'Model project','question':'How can a model explain equality?', 'brief':'Make and test an original paper model with evidence.', 'artifact':'A paper model and description', 'criteria':'Accuracy, reasons and independent explanation', 'resources':'Paper and supplied fictional data','topic_id':'linear','bloom':['create'],'published':True}
+        p=self.client.post(f"/classes/{self.room['id']}/projects",headers=self.teacher,json=brief).json()
+        base=f"/classes/{self.room['id']}/projects/{p['id']}/submissions"
+        value={'revision':1,'expected_version':0,'stage':2,'entries':['prediction','design','','','','',''],'artifact':'A text prototype for classroom review.','consent':True}
+        return p,base,value
+
+    def test_submission_consent_scope_and_no_passive_collection(self):
+        project,base,value=self.submission_fixture()
+        privacy=f"/classes/{self.room['id']}/project-privacy"
+        self.assertEqual(self.client.get(privacy,headers=self.learner).json()['enabled'],False)
+        self.assertEqual(self.client.post(base,headers=self.learner,json=value).status_code,409)
+        self.assertEqual(self.client.put(privacy,headers=self.learner,json={'enabled':True}).status_code,403)
+        self.client.put(privacy,headers=self.teacher,json={'enabled':True,'retention_days':7})
+        self.assertEqual(self.client.post(base,headers=self.learner,json={**value,'consent':False}).status_code,422)
+        self.assertEqual(self.client.get(base,headers=self.teacher).json(),[])
+        saved=self.client.post(base,headers=self.learner,json=value)
+        self.assertEqual(saved.status_code,200,saved.text);sid=saved.json()['id']
+        peer=self.register('project_peer');self.join(peer,self.code)
+        stranger=self.register('teacher_outsider','teacher')
+        self.assertEqual(self.client.get(base,headers=peer).json(),[])
+        self.assertEqual(self.client.get(base+f'/{sid}',headers=peer).status_code,403)
+        self.assertEqual(self.client.get(base,headers=stranger).status_code,403)
+        self.assertEqual(self.client.get(base+f'/{sid}',headers=stranger).status_code,403)
+        detail=self.client.get(base+f'/{sid}',headers=self.teacher).json()
+        self.assertEqual(detail['body']['artifact'],value['artifact']);self.assertEqual(detail['body']['brief']['revision'],1)
+        self.assertEqual(self.client.post(base,headers=self.teacher,json=value).status_code,403)
+
+    def test_feedback_revisions_and_stale_writes(self):
+        project,base,value=self.submission_fixture()
+        self.client.put(f"/classes/{self.room['id']}/project-privacy",headers=self.teacher,json={'enabled':True})
+        sid=self.client.post(base,headers=self.learner,json=value).json()['id']
+        review={'receipt':self.client.get(base+f'/{sid}',headers=self.teacher).json()['receipt'],'version':1,'status':'revision_requested','feedback':'Explain why your model preserves equality, then test another case.','accuracy':'developing','reasoning':'developing','testing':'not_assessed','revision':'not_assessed','artifact_verified':False,'independent_verified':False}
+        route=base+f'/{sid}/review'
+        self.assertEqual(self.client.put(route,headers=self.learner,json=review).status_code,403)
+        self.assertEqual(self.client.put(route,headers=self.teacher,json=review).status_code,200)
+        self.assertEqual(self.client.put(route,headers=self.teacher,json=review).status_code,409)
+        feedback=self.client.get(base+f'/{sid}',headers=self.learner).json()['review']
+        self.assertEqual(feedback['status'],'revision_requested');self.assertFalse(feedback['independent_verified'])
+        self.assertEqual(self.client.post(base,headers=self.learner,json=value).status_code,409)
+        revised=self.client.post(base,headers=self.learner,json={**value,'expected_version':1,'artifact':'Version two with a second test case.'})
+        self.assertEqual(revised.json()['version'],2)
+        self.assertEqual(len(self.client.get(base,headers=self.learner).json()),2)
+        latest=self.client.get(base,headers=self.teacher).json()
+        self.assertEqual(len(latest),1);self.assertEqual(latest[0]['version'],2);self.assertEqual(latest[0]['review_status'],'awaiting_review')
+        self.assertEqual(self.client.get(base+f'/{sid}',headers=self.learner).json()['review']['feedback'],review['feedback'])
+
+    def test_submission_retention_revocation_and_withdrawal(self):
+        project,base,value=self.submission_fixture();privacy=f"/classes/{self.room['id']}/project-privacy"
+        self.client.put(privacy,headers=self.teacher,json={'enabled':True,'retention_days':90})
+        sid=self.client.post(base,headers=self.learner,json=value).json()['id']
+        self.client.put(privacy,headers=self.teacher,json={'enabled':False,'retention_days':7})
+        self.assertEqual(self.client.post(base,headers=self.learner,json={**value,'expected_version':1}).status_code,409)
+        with accounts.db() as c:self.assertLessEqual(c.execute('SELECT expires FROM project_submissions WHERE id=?',(sid,)).fetchone()[0],time.time()+7*86400)
+        learner_id=self.client.get('/auth/me',headers=self.learner).json()['id']
+        self.client.delete(f"/classes/{self.room['id']}/members/{learner_id}",headers=self.teacher)
+        self.assertEqual(self.client.get(base+f'/{sid}',headers=self.teacher).status_code,403)
+        self.assertEqual(len(self.client.get('/my-project-submissions',headers=self.learner).json()),1)
+        self.assertEqual(self.client.delete(base,headers=self.learner).status_code,200)
+        self.assertEqual(self.client.get('/my-project-submissions',headers=self.learner).json(),[])
+        self.join(self.learner,self.code)
+        self.client.put(privacy,headers=self.teacher,json={'enabled':True})
+        sid=self.client.post(base,headers=self.learner,json=value).json()['id']
+        with accounts.db() as c:c.execute('UPDATE project_submissions SET expires=0 WHERE id=?',(sid,))
+        self.assertEqual(self.client.get(base+f'/{sid}',headers=self.learner).status_code,404)
+        with accounts.db() as c:self.assertEqual(c.execute('SELECT COUNT(*) FROM project_submissions').fetchone()[0],0)
+        self.client.post(base,headers=self.learner,json=value)
+        self.client.put(privacy,headers=self.teacher,json={'enabled':False,'delete_stored':True})
+        self.assertEqual(self.client.get(base,headers=self.learner).json(),[])
+
+    def test_submission_input_validation(self):
+        project,base,value=self.submission_fixture()
+        self.client.put(f"/classes/{self.room['id']}/project-privacy",headers=self.teacher,json={'enabled':True})
+        for change in [{'revision':2},{'entries':['x']},{'entries':['x'*6001]+['']*6},{'stage':3},{'artifact':'x'*20001},{'stage':8}]:
+            self.assertIn(self.client.post(base,headers=self.learner,json={**value,**change}).status_code,[409,422])
+
 if __name__=='__main__':unittest.main()

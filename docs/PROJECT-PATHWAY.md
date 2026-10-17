@@ -4,7 +4,7 @@ The project pathway supplements guided practice across all five subjects and bot
 curricula. One teacher owns each class and its briefs. Drafts are private; only
 published briefs are returned to enrolled learners. Edits use optimistic revision
 checks to avoid silently overwriting another saved version. Class membership is
-checked on every project request. No learner project answers are accepted by the API.
+checked on every project request. Unshared project answers remain local. Learners may explicitly share assessment snapshots under class privacy controls.
 
 ## Design rationale
 
@@ -20,8 +20,8 @@ authentic inquiry or delivery quality; teachers adapt it to their setting and sy
 Constructionism is supported by requiring learners to make an external, shareable
 artifact, explain its operation, test it and compare revisions. Actual artifacts are
 made outside this notebook (paper models, exhibits, prototype designs or pseudocode).
-The pilot does not execute code, upload artifacts, provide a shared maker workspace
-or deliver automated peer collaboration. Teachers organise these classroom activities.
+The pilot does not execute code, upload binary files, provide a shared maker workspace
+or deliver automated peer collaboration. Text artifacts, pseudocode and physical-artifact descriptions can be submitted for teacher review. Teachers organise these classroom activities.
 
 ## Evidence and assessment
 
@@ -39,8 +39,7 @@ switching or refreshing. Exports include learner prose and must be handled priva
 Resumable files are parsed locally with size, format, brief-version and entry validation; they are never uploaded. They permit continuing over several lessons. Independent mode hides earlier entries and disables exports/copy until the attempt
 is recorded. It is formative, not secure assessment. Refresh is manual; withdrawn
 briefs already viewed or exported cannot be remotely erased. Class pause blocks local
-advancement but still allows writing/export. There is no submission dashboard, durable
-learner history, teacher feedback inbox or in-app team workspace. These boundaries
+advancement but still allows writing/export. The teacher dashboard reviews voluntarily shared snapshots and gives criterion judgements, feedback and revision requests. Retained versions appear in the learner feedback view; there is no in-app team workspace. These boundaries
 are displayed to users. Safety notices, voice opt-in and subject/course boundaries
 remain in effect; project notebooks do not call AI.
 
@@ -61,3 +60,15 @@ Switch back to guided practice to check that both pathways remain available.
 
 These references inform design choices; they do not certify this software or prove
 educational effectiveness. Classroom and research validation remain necessary.
+
+## Dashboard testing
+
+Teacher: select a published project, open Class submission privacy controls, enable
+voluntary submissions and choose retention. Learner: record some evidence, add artifact
+text, acknowledge sharing and submit. Teacher: refresh submissions, open the snapshot,
+review its brief/evidence, enter criterion judgements and feedback, request revision.
+Learner: refresh, read feedback, restore the snapshot locally, revise and share a new
+version. Privacy tests should check classmates/other teachers are denied, old feedback
+stays on its version, disabled acceptance blocks new sharing, and retention/withdrawal
+remove records. The learner's class-page privacy section supports withdrawal after
+leaving. Backups, secure deletion and real school consent still require operational policy.

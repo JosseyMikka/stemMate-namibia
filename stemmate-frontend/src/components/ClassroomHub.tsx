@@ -3,6 +3,7 @@ import {request, type User, type Course, type Classroom} from '../api/stemmateAp
 import TeacherControls from './TeacherControls';
 import Chat from './Chat';
 import ProjectPathway from './ProjectPathway';
+import StoredWorkPrivacy from './StoredWorkPrivacy';
 export default function ClassroomHub({user,onSignOut}: {user:User;onSignOut:()=>void}) {
   const [classes,setClasses]=useState<Classroom[]>([]);
   const [courses,setCourses]=useState<Course[]>([]);
@@ -66,6 +67,7 @@ export default function ClassroomHub({user,onSignOut}: {user:User;onSignOut:()=>
           <label htmlFor="join-code">Class code (required)</label><input id="join-code" value={joinCode} required minLength={8} maxLength={32} autoComplete="off" autoCapitalize="characters" disabled={busy} onChange={e=>setJoinCode(e.target.value)} /><button disabled={busy}>Join class</button>
         </form>}
       </details>
+      {user.role==='learner'&&<StoredWorkPrivacy/>}
       <p role="status">{message}</p>{error&&<p role="alert" ref={errorRef} tabIndex={-1} className="error">{error}</p>}
       {classroom&&<section key={classroom.id} ref={activityRef} tabIndex={-1} className="classroom" aria-label={classroom.name}>
         <h2>{classroom.name}</h2><p>{classroom.course.pathway} · {classroom.course.qualification} · {classroom.course.syllabus_subject} {classroom.course.code} · Grade {classroom.grade} · Exam {classroom.exam_year}</p>

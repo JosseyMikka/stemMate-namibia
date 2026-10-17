@@ -1,6 +1,7 @@
 import {useEffect, useRef, useState} from 'react';
 import {request, type Classroom, type User} from '../api/stemmateApi';
 import VoiceTools from './VoiceTools';
+import ProjectReview from './ProjectReview';
 import {readNotebook} from './projectNotebook';
 type Bloom='remember'|'understand'|'apply'|'analyse'|'evaluate'|'create';
 interface Project {id?:number;revision:number;title:string;question:string;brief:string;artifact:string;criteria:string;resources:string;topic_id:string;bloom:Bloom[];published:boolean}
@@ -39,7 +40,7 @@ export default function ProjectPathway({classroom,user}:{classroom:Classroom;use
  function choose(p:Project){setSelected(p);if(user.role==='teacher')setDraft(p);requestAnimationFrame(()=>heading.current?.focus());}
  return <section className="learning-area" aria-label="Teacher-led projects"><h2 ref={heading} tabIndex={-1}>Learn by making and improving</h2>
  <p>A project takes several lessons. Your teacher sets checkpoints and reviews evidence; learners choose, make, test, revise and explain. Bloom’s categories describe intended thinking, not automatic scores or a fixed ladder.</p>
- <p className="privacy">{classroom.course.safety_notice} Project briefs are saved for this class. Learner notebooks stay in browser memory: export before switching projects, pathways, classes or refreshing. Share artifacts and receive assessment from your teacher in class.</p>
+ <p className="privacy">{classroom.course.safety_notice} Project briefs are saved for this class. Unshared notebooks stay in browser memory: save before switching or refreshing. Sharing a snapshot for teacher feedback is optional and uses the class retention policy.</p>
  <button className="secondary" disabled={busy} onClick={()=>void run(async()=>{const latest=await request<Project[]>(base);setItems(latest);setSelected(current=>latest.find(p=>p.id===current?.id)??null);setMessage('Projects refreshed. New brief versions open a new notebook; export your current work first.');})}>Refresh projects</button>
  <div className="class-grid">{items.map(p=><button className="class-card" key={p.id} aria-pressed={selected?.id===p.id} onClick={()=>choose(p)}><strong>{p.title}</strong><span>Version {p.revision} · {p.published?'Shared with class':'Teacher draft'}</span></button>)}</div>
  {!items.length&&<p>{user.role==='teacher'?'Adapt the starter brief below, then share it with the class.':'Your teacher has not shared a project yet. Guided practice is still available.'}</p>}
@@ -54,11 +55,11 @@ export default function ProjectPathway({classroom,user}:{classroom:Classroom;use
  <button disabled={busy||!draft.bloom.length}>{busy?'Saving…':'Save project brief'}</button>
  </form></details>}
  {selected&&<><section className="card"><h3>{selected.title}</h3><p><strong>Driving question:</strong> {selected.question}</p><p className="learner-text">{selected.brief}</p><h4>Make something meaningful</h4><p>{selected.artifact}</p><h4>Agree what success looks like</h4><p className="learner-text">{selected.criteria}</p><h4>Resources and teacher checkpoints</h4><p className="learner-text">{selected.resources}</p><h4>Intended learning objectives</h4><ul>{selected.bloom.map(b=><li key={b}>{bloomLabels[b]}</li>)}</ul></section>
- <ProjectNotebook key={`${selected.id}-${selected.revision}`} project={selected} classroom={classroom}/></>}
+ {user.role==='teacher'?<ProjectReview key={`review-${selected.id}`} classroom={classroom} user={user} project={selected}/>:<ProjectNotebook key={`${selected.id}-${selected.revision}`} project={selected} classroom={classroom} user={user}/>}</>}
  {busy&&<p role="status">Updating projects…</p>}<p role="status">{message}</p>{error&&<p className="error" role="alert" tabIndex={-1} ref={errorRef}>{error}</p>}
  </section>;
 }
-function ProjectNotebook({project,classroom}:{project:Project;classroom:Classroom}){
+function ProjectNotebook({project,classroom,user}:{project:Project;classroom:Classroom;user:User}){
  const [stage,setStage]=useState(0),[entries,setEntries]=useState<string[]>(()=>phases.map(()=>''));const [fileMessage,setFileMessage]=useState('');const heading=useRef<HTMLHeadingElement>(null);
  const independent=stage===6,complete=stage===7;const phase=phases[Math.min(stage,6)];
  const notebookText=[project.title,`Brief version ${project.revision} · ${classroom.course.syllabus_subject} · ${classroom.course.pathway}`,project.question,project.brief,project.artifact,project.criteria,project.resources,`Intended objectives: ${project.bloom.join(', ')}`,'Learner self-report, not teacher verification or a learning score.',...entries.map((e,i)=>`${phases[i].title}\n${e||'(not recorded)'}`)].join('\n\n');
@@ -83,8 +84,9 @@ function ProjectNotebook({project,classroom}:{project:Project;classroom:Classroo
  <button disabled={!entries[stage].trim()||classroom.paused}>{independent?'Record independent attempt':'Record evidence and continue'}</button>
  </form></>:<p>Discuss this notebook and artifact with your teacher. Ask for an individual explanation check and a later unaided task. No automatic mark or Bloom level is assigned.</p>}
  {!independent&&entries.some(e=>e)&&<details><summary>Earlier project evidence</summary>{entries.map((e,i)=>e&&<div key={i}><h4>{phases[i].title}</h4><p className="learner-text">{e}</p></div>)}</details>}
- <button className="secondary" disabled={independent} onClick={exportWork}>Export my notebook</button>{independent&&<p>Export is available again after your independent attempt.</p>}<p>Exports contain your writing and are stored in your Downloads. Avoid personal details; share only with your teacher or the agreed audience. No notebook text or files are sent to AI or saved on the server.</p>
+ <button className="secondary" disabled={independent} onClick={exportWork}>Export my notebook</button>{independent&&<p>Export is available again after your independent attempt.</p>}<p>Exports contain your writing and are stored in your Downloads. Avoid personal details; share only with your teacher or the agreed audience. No files or notebook text are sent to AI. Only snapshots you explicitly share below are saved on the server.</p>
  {!independent&&<><button className="secondary" onClick={saveResumable}>Save resumable notebook</button><label htmlFor="restore-notebook">Resume from a saved notebook file (processed on this device only)</label><input id="restore-notebook" type="file" accept=".json,application/json" onChange={e=>{void restore(e.target.files?.[0]);e.target.value='';}}/><p>Use the resumable file to continue in another lesson. Keep it private. Restoration requires the same project and brief version; ask your teacher before changing versions.</p></>}<p role="status">{fileMessage}</p>
  {!independent&&<details><summary>Copy notebook text instead</summary><label htmlFor="notebook-copy">Your notebook text — select and copy</label><textarea id="notebook-copy" readOnly rows={10} value={notebookText}/></details>}
+ {!independent&&<ProjectReview classroom={classroom} user={user} project={project} entries={entries} stage={stage} onRestore={(saved,next)=>{setEntries(saved);setStage(next);}}/>}
  </section>;
 }

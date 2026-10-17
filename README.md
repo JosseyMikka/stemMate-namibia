@@ -13,7 +13,7 @@ private admission code to register, then can create and manage several classes,
 including different grades and curriculum pathways. Each class has its own course,
 exam year, members, hint limit, pause, dictation and evaluation settings. Learners
 join using expiring, rotatable invitations. Every learning operation checks current
-class membership. Teachers see aliases and aggregate activity, not learners' drafts.
+class membership. Teachers see aliases, aggregate activity and project snapshots explicitly shared with them; unshared drafts stay local.
 The admission code does not verify professional identity; distribute it through a
 trusted school administrator. One owner per class is supported; co-teaching is not.
 
@@ -75,8 +75,7 @@ Use exactly one worker/instance: learning sessions and abuse limits are in memor
 
 ## Privacy and safeguards
 
-Attempts, explanations and dictated answers stay in browser memory. The API
-receives an acknowledgement, not learner prose. Optional custom questions and
+Guided-practice attempts, explanations and dictated answers stay in browser memory. Project notebooks also stay local unless a learner explicitly submits a snapshot for assessment. The guided-practice API receives an acknowledgement, not learner prose; separate assessment routes store only explicitly shared project snapshots. Optional custom questions and
 selected curriculum excerpts go to Groq; provider data handling needs school review.
 Do not enter personal information. Generated plans expire after one hour and are
 purged within a minute; clearing a session deletes its plan immediately.
@@ -155,7 +154,7 @@ changes. Withdrawal cannot erase copies already viewed or exported.
 Projects span investigation, design choice, making, testing, critique/revision,
 sharing/defence and an individual independent check. Learners make and share the
 actual artifact in the teacher-approved setting; the app is a scaffold and local
-notebook, not a maker environment, collaboration service or submission/marking system.
+notebook, with optional text-artifact submission and teacher assessment described below. It is not a maker environment or real-time collaboration service.
 The teacher supplies a fresh independent question and later unaided transfer check.
 Bloom labels describe intended thinking, not measured attainment or a fixed ladder.
 Teachers must supply authentic context, sustained inquiry time and suitable materials;
@@ -165,5 +164,33 @@ Notebooks stay in browser memory; switching pathways/projects/classes or refresh
 loses unfinished writing. Save a resumable notebook file to continue next lesson, or export text/use the copyable fallback before leaving. Resume files are validated and processed locally for the same project version, never uploaded.
 Exports include the brief and learner evidence and need private handling. Earlier
 entries, copy and export are withheld during the independent check. These are local
-formative gates, not secure exam controls. No notebook text goes to the server or AI,
-and no learner progress dashboard or automatic Bloom/mastery score is created.
+formative gates, not secure exam controls. No project work goes to AI. Only explicitly shared snapshots go to the server; the dashboard shows learner-reported progress and teacher assessment separately, with no automatic Bloom/mastery score.
+
+## Project assessment and privacy
+
+The teacher dashboard shows latest shared progress snapshots per currently enrolled
+learner, up to 100 recent updates per project. Learners choose whether to share
+seven notebook entries and a text artifact/pseudocode or description of a physical
+artifact. No file, image or audio uploads are supported. Unshared local edits are not
+visible to teachers. Actual physical artifacts and independent understanding need
+separate teacher verification; the review form records those checks explicitly.
+Teachers give actionable feedback, criterion judgements and revision requests.
+Learners view all their retained versions/feedback and can restore a snapshot locally
+before submitting a revision. Brief and submission versions are kept with each
+assessment; stale writes are rejected. These are human judgements, not automated grades.
+
+Sharing is disabled per class by default, requires the teacher to enable it and an
+explicit learner acknowledgement for every submission. Teachers choose 7/30/90-day
+retention. Shorter periods cap existing records; extending a period never extends
+existing records silently. Disabling acceptance stops new submissions but does not
+delete existing work. A separate confirmed control deletes class submissions/feedback.
+Learners can withdraw their own stored versions and feedback, including after leaving
+a class, from My stored project work and privacy. Former members lose app access,
+and their records are hidden from the teacher pending withdrawal or expiry.
+Expired records are inaccessible and purged on relevant requests or within the
+next minute while the server runs. Server downtime delays physical cleanup.
+Deletion removes active database records, not previously exported copies or backups;
+SQLite pages may retain deleted bytes until maintenance. Schools must establish backup,
+secure-erasure, consent, access and retention procedures before deployment. App opt-in
+is not a replacement for institutional/guardian consent or a research protocol.
+The hosting operator can access server storage; restrict it accordingly.

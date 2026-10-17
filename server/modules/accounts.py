@@ -13,6 +13,9 @@ from modules.curricula import course_for
 
 router = APIRouter()
 SCHEMA = '''
+CREATE TABLE IF NOT EXISTS project_privacy (class_id INTEGER PRIMARY KEY REFERENCES classes(id), enabled INTEGER NOT NULL DEFAULT 0, retention_days INTEGER NOT NULL DEFAULT 30);
+CREATE TABLE IF NOT EXISTS project_submissions (id INTEGER PRIMARY KEY, project_id INTEGER NOT NULL REFERENCES projects(id), learner_id INTEGER NOT NULL REFERENCES accounts(id), version INTEGER NOT NULL, body TEXT NOT NULL, review TEXT NOT NULL DEFAULT '{}', updated REAL NOT NULL, expires REAL NOT NULL, UNIQUE(project_id,learner_id,version));
+
 CREATE TABLE IF NOT EXISTS projects (
  id INTEGER PRIMARY KEY, class_id INTEGER NOT NULL REFERENCES classes(id),
  body TEXT NOT NULL, revision INTEGER NOT NULL, updated REAL NOT NULL);

@@ -30,6 +30,7 @@ async def lifespan(app):
             await asyncio.sleep(60)
             with store.lock:
                 store.purge()
+                projects.purge_expired()
                 now = monotonic()
                 for key in list(auth_attempts):
                     if not auth_attempts[key] or auth_attempts[key][-1] < now-600:
