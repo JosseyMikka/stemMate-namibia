@@ -72,3 +72,11 @@ version. Privacy tests should check classmates/other teachers are denied, old fe
 stays on its version, disabled acceptance blocks new sharing, and retention/withdrawal
 remove records. The learner's class-page privacy section supports withdrawal after
 leaving. Backups, secure deletion and real school consent still require operational policy.
+
+### Workflow regression verification (18 October 2026)
+
+Retention is measured from each snapshot's submission date. Shortening it immediately removes snapshots already older than the new limit; increasing it does not extend existing snapshots. Each submission acknowledges the current retention period. If it changes while a learner is working, refresh and acknowledge the updated terms before sharing again. Submission writes recheck enrolment, acceptance, pause and brief version under the database write lock; feedback writes recheck teacher ownership and current enrolment.
+
+Stored snapshots from earlier brief versions remain readable with their original feedback and criteria, but cannot restore into a notebook for a different brief version. Initial sharing/privacy saves stay disabled until server settings have loaded.
+
+Browser verification used separate fictional teacher/learner accounts and a disposable QA class: initial submission, teacher rubric feedback, learner receipt and restore, revised submission, preserved earlier feedback, changed-retention acknowledgement, disabled acceptance and older-brief restore rejection. Live API checks exercised learner withdrawal and class-wide deletion, followed by empty-list confirmation in both browser views. Existing demo class work was preserved. Automated tests cover peer/other-teacher denial, expiry, stale writes and concurrent policy/enrolment/brief changes.

@@ -11,7 +11,7 @@ from unittest.mock import patch
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'server'))
 from fastapi.testclient import TestClient
 import main
-from modules import accounts
+from modules import accounts, projects
 from modules.curricula import LESSONS, catalogue
 from modules.learning import LearningStore
 
@@ -302,7 +302,7 @@ class ClassroomTests(unittest.TestCase):
         brief={'title':'Model project','question':'How can a model explain equality?', 'brief':'Make and test an original paper model with evidence.', 'artifact':'A paper model and description', 'criteria':'Accuracy, reasons and independent explanation', 'resources':'Paper and supplied fictional data','topic_id':'linear','bloom':['create'],'published':True}
         p=self.client.post(f"/classes/{self.room['id']}/projects",headers=self.teacher,json=brief).json()
         base=f"/classes/{self.room['id']}/projects/{p['id']}/submissions"
-        value={'revision':1,'expected_version':0,'stage':2,'entries':['prediction','design','','','','',''],'artifact':'A text prototype for classroom review.','consent':True}
+        value={'revision':1,'expected_version':0,'stage':2,'entries':['prediction','design','','','','',''],'artifact':'A text prototype for classroom review.','consent':True,'consent_retention_days':30}
         return p,base,value
 
     def test_submission_consent_scope_and_no_passive_collection(self):
@@ -314,7 +314,7 @@ class ClassroomTests(unittest.TestCase):
         self.client.put(privacy,headers=self.teacher,json={'enabled':True,'retention_days':7})
         self.assertEqual(self.client.post(base,headers=self.learner,json={**value,'consent':False}).status_code,422)
         self.assertEqual(self.client.get(base,headers=self.teacher).json(),[])
-        saved=self.client.post(base,headers=self.learner,json=value)
+        saved=self.client.post(base,headers=self.learner,json={**value,'consent_retention_days':7})
         self.assertEqual(saved.status_code,200,saved.text);sid=saved.json()['id']
         peer=self.register('project_peer');self.join(peer,self.code)
         stranger=self.register('teacher_outsider','teacher')
@@ -348,7 +348,7 @@ class ClassroomTests(unittest.TestCase):
     def test_submission_retention_revocation_and_withdrawal(self):
         project,base,value=self.submission_fixture();privacy=f"/classes/{self.room['id']}/project-privacy"
         self.client.put(privacy,headers=self.teacher,json={'enabled':True,'retention_days':90})
-        sid=self.client.post(base,headers=self.learner,json=value).json()['id']
+        sid=self.client.post(base,headers=self.learner,json={**value,'consent_retention_days':90}).json()['id']
         self.client.put(privacy,headers=self.teacher,json={'enabled':False,'retention_days':7})
         self.assertEqual(self.client.post(base,headers=self.learner,json={**value,'expected_version':1}).status_code,409)
         with accounts.db() as c:self.assertLessEqual(c.execute('SELECT expires FROM project_submissions WHERE id=?',(sid,)).fetchone()[0],time.time()+7*86400)
@@ -373,5 +373,65 @@ class ClassroomTests(unittest.TestCase):
         self.client.put(f"/classes/{self.room['id']}/project-privacy",headers=self.teacher,json={'enabled':True})
         for change in [{'revision':2},{'entries':['x']},{'entries':['x'*6001]+['']*6},{'stage':3},{'artifact':'x'*20001},{'stage':8}]:
             self.assertIn(self.client.post(base,headers=self.learner,json={**value,**change}).status_code,[409,422])
+
+    def test_retention_is_measured_from_submission_and_never_extended(self):
+        project,base,value=self.submission_fixture();privacy=f"/classes/{self.room['id']}/project-privacy"
+        self.client.put(privacy,headers=self.teacher,json={'enabled':True,'retention_days':90})
+        sid=self.client.post(base,headers=self.learner,json={**value,'consent_retention_days':90}).json()['id']
+        with accounts.db() as c:c.execute('UPDATE project_submissions SET updated=? WHERE id=?',(time.time()-8*86400,sid))
+        self.client.put(privacy,headers=self.teacher,json={'enabled':True,'retention_days':7})
+        self.assertEqual(self.client.get(base,headers=self.learner).json(),[])
+        sid=self.client.post(base,headers=self.learner,json={**value,'consent_retention_days':7}).json()['id']
+        before=self.client.get(base+f'/{sid}',headers=self.learner).json()['expires']
+        self.client.put(privacy,headers=self.teacher,json={'enabled':True,'retention_days':90})
+        self.assertEqual(self.client.get(base+f'/{sid}',headers=self.learner).json()['expires'],before)
+
+    def test_sharing_requires_current_storage_acknowledgement(self):
+        project,base,value=self.submission_fixture();privacy=f"/classes/{self.room['id']}/project-privacy"
+        self.client.put(privacy,headers=self.teacher,json={'enabled':True,'retention_days':7})
+        self.assertEqual(self.client.post(base,headers=self.learner,json=value).status_code,409)
+        missing={k:v for k,v in value.items() if k!='consent_retention_days'}
+        self.assertEqual(self.client.post(base,headers=self.learner,json=missing).status_code,422)
+        saved=self.client.post(base,headers=self.learner,json={**value,'consent_retention_days':7})
+        self.assertEqual(saved.status_code,200)
+        detail=self.client.get(base+f"/{saved.json()['id']}",headers=self.learner).json()
+        self.assertEqual(detail['body']['consent_retention_days'],7)
+
+    def test_concurrent_privacy_change_prevents_submission(self):
+        project,base,value=self.submission_fixture();privacy=f"/classes/{self.room['id']}/project-privacy"
+        self.client.put(privacy,headers=self.teacher,json={'enabled':True})
+        def disable():
+            with accounts.db() as c:c.execute('UPDATE project_privacy SET enabled=0 WHERE class_id=?',(self.room['id'],))
+        with patch.object(projects,'purge_expired',side_effect=disable):
+            self.assertEqual(self.client.post(base,headers=self.learner,json=value).status_code,409)
+        self.assertEqual(self.client.get(base,headers=self.learner).json(),[])
+
+    def test_concurrent_membership_and_brief_changes_prevent_submission(self):
+        project,base,value=self.submission_fixture()
+        self.client.put(f"/classes/{self.room['id']}/project-privacy",headers=self.teacher,json={'enabled':True})
+        def change_brief():
+            with accounts.db() as c:c.execute('UPDATE projects SET revision=revision+1 WHERE id=?',(project['id'],))
+        with patch.object(projects,'purge_expired',side_effect=change_brief):
+            self.assertEqual(self.client.post(base,headers=self.learner,json=value).status_code,409)
+        def remove_member():
+            with accounts.db() as c:c.execute('DELETE FROM enrolments WHERE class_id=?',(self.room['id'],))
+        with patch.object(projects,'purge_expired',side_effect=remove_member):
+            self.assertEqual(self.client.post(base,headers=self.learner,json={**value,'revision':2}).status_code,403)
+        with accounts.db() as c:self.assertEqual(c.execute('SELECT COUNT(*) FROM project_submissions').fetchone()[0],0)
+
+    def test_concurrent_removal_prevents_teacher_feedback(self):
+        project,base,value=self.submission_fixture()
+        self.client.put(f"/classes/{self.room['id']}/project-privacy",headers=self.teacher,json={'enabled':True})
+        sid=self.client.post(base,headers=self.learner,json=value).json()['id']
+        detail=self.client.get(base+f'/{sid}',headers=self.teacher).json()
+        review={'receipt':detail['receipt'],'version':1,'status':'revision_requested','feedback':'Add another equation and explain your reasoning.','accuracy':'developing','reasoning':'developing','testing':'not_assessed','revision':'not_assessed'}
+        original=projects.submission_access
+        def remove_after_read(*args):
+            row=original(*args)
+            with accounts.db() as c:c.execute('DELETE FROM enrolments WHERE class_id=?',(self.room['id'],))
+            return row
+        with patch.object(projects,'submission_access',side_effect=remove_after_read):
+            self.assertEqual(self.client.put(base+f'/{sid}/review',headers=self.teacher,json=review).status_code,403)
+        with accounts.db() as c:self.assertEqual(json.loads(c.execute('SELECT review FROM project_submissions WHERE id=?',(sid,)).fetchone()[0]),{})
 
 if __name__=='__main__':unittest.main()

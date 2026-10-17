@@ -70,6 +70,7 @@ class Privacy(BaseModel):
     delete_stored:bool=False
 
 class Submission(BaseModel):
+    consent_retention_days:Literal[7,30,90]
     revision:int=Field(ge=1)
     expected_version:int=Field(default=0,ge=0)
     stage:int=Field(ge=0,le=7)
@@ -114,7 +115,8 @@ def set_privacy(class_id:int,value:Privacy,user=Depends(current_user)):
             connection.execute('DELETE FROM project_submissions WHERE project_id IN (SELECT id FROM projects WHERE class_id=?)',(class_id,))
         connection.execute('INSERT INTO project_privacy VALUES(?,?,?) ON CONFLICT(class_id) DO UPDATE SET enabled=excluded.enabled,retention_days=excluded.retention_days',(class_id,value.enabled,value.retention_days))
         # Shorter retention also applies to existing submissions; never extend them silently.
-        connection.execute('UPDATE project_submissions SET expires=MIN(expires,?) WHERE project_id IN (SELECT id FROM projects WHERE class_id=?)',(time.time()+value.retention_days*86400,class_id))
+        connection.execute('UPDATE project_submissions SET expires=MIN(expires,updated+?) WHERE project_id IN (SELECT id FROM projects WHERE class_id=?)',(value.retention_days*86400,class_id))
+        connection.execute('DELETE FROM project_submissions WHERE expires<=?',(time.time(),))
     return privacy_for(class_id)
 
 
@@ -138,10 +140,22 @@ def submit(class_id:int,project_id:int,value:Submission,user=Depends(current_use
     now=time.time()
     with db() as connection:
         connection.execute('BEGIN IMMEDIATE')
+        # Recheck access, the brief and sharing terms under the write lock. A pause,
+        # removal or privacy change between the initial reads and insert must win.
+        current_class=connection.execute('SELECT * FROM classes WHERE id=?',(class_id,)).fetchone()
+        member=connection.execute('SELECT 1 FROM enrolments WHERE class_id=? AND learner_id=?',(class_id,user['id'])).fetchone()
+        if not member:raise HTTPException(403,'You are no longer enrolled in this class.')
+        current_project=connection.execute('SELECT * FROM projects WHERE id=? AND class_id=?',(project_id,class_id)).fetchone()
+        current_policy=connection.execute('SELECT * FROM project_privacy WHERE class_id=?',(class_id,)).fetchone()
+        if not current_class or current_class['paused'] or not current_project or not unpack(current_project)['published'] or not current_policy or not current_policy['enabled']:raise HTTPException(409,'Your teacher is not accepting submissions now.')
+        if current_project['revision']!=value.revision:raise HTTPException(409,'The brief changed. Save locally and refresh projects before sharing.')
+        if current_policy['retention_days']!=value.consent_retention_days:raise HTTPException(409,'The storage period changed. Refresh submissions, review it and acknowledge sharing again.')
+        policy={'retention_days':current_policy['retention_days']}
+        project=unpack(current_project)
         latest=connection.execute('SELECT MAX(version) FROM project_submissions WHERE project_id=? AND learner_id=?',(project_id,user['id'])).fetchone()[0] or 0
         if latest!=value.expected_version:raise HTTPException(409,'A newer submission exists. Refresh your submissions before sending another version.')
         if latest>=20:raise HTTPException(409,'This project has reached the pilot limit of 20 stored versions. Export and ask your teacher for support.')
-        body={'brief':project,'stage':value.stage,'entries':value.entries,'artifact':value.artifact,'sharing_acknowledged':True,'sharing_notice_version':'project-assessment-v1'}
+        body={'brief':project,'stage':value.stage,'entries':value.entries,'artifact':value.artifact,'sharing_acknowledged':True,'sharing_notice_version':'project-assessment-v1','consent_retention_days':value.consent_retention_days}
         cursor=connection.execute('INSERT INTO project_submissions(project_id,learner_id,version,body,updated,expires) VALUES(?,?,?,?,?,?)',(project_id,user['id'],latest+1,json.dumps(body),now,now+policy['retention_days']*86400))
         submission_id=cursor.lastrowid
     return {'id':submission_id,'version':latest+1,'expires':now+policy['retention_days']*86400}
@@ -182,6 +196,9 @@ def review(class_id:int,project_id:int,submission_id:int,value:Review,user=Depen
     if not value.feedback.strip():raise HTTPException(422,'Write actionable feedback.')
     with db() as connection:
         connection.execute('BEGIN IMMEDIATE')
+        owner=connection.execute('SELECT teacher_id FROM classes WHERE id=?',(class_id,)).fetchone()
+        member=connection.execute('SELECT 1 FROM enrolments WHERE class_id=? AND learner_id=?',(class_id,row['learner_id'])).fetchone()
+        if not owner or owner['teacher_id']!=user['id'] or not member:raise HTTPException(403,'Class access changed. Refresh the dashboard.')
         current=connection.execute('SELECT * FROM project_submissions WHERE id=?',(submission_id,)).fetchone()
         if not current:raise HTTPException(409,'This submission was withdrawn. Refresh the dashboard.')
         if value.receipt!=submission_receipt(current):raise HTTPException(409,'This submission was replaced. Refresh the dashboard.')
@@ -196,7 +213,7 @@ def delete_own(class_id:int,project_id:int,user=Depends(current_user)):
     # Learners may withdraw their own stored work even after leaving the class.
     if user['role']!='learner':raise HTTPException(403,'Learners withdraw their own submissions; teachers use class privacy controls.')
     with db() as connection:
-        connection.execute('DELETE FROM project_submissions WHERE project_id=? AND learner_id=?',(project_id,user['id']))
+        connection.execute('DELETE FROM project_submissions WHERE project_id IN (SELECT id FROM projects WHERE id=? AND class_id=?) AND learner_id=?',(project_id,class_id,user['id']))
     return {'deleted':True}
 
 @router.get('/my-project-submissions')
