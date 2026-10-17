@@ -31,6 +31,8 @@ Use $...$ for inline math and $$...$$ for display math, with valid LaTeX.
 
 def model_reply(topic, band, instructions, course=None, topic_id=None):
     import os
+    if not os.getenv('GROQ_API_KEY','').strip():
+        raise ValueError('AI provider is not configured')
     from langchain_groq import ChatGroq
     from langchain_community.vectorstores import Chroma
     from modules.embeddings import embeddings

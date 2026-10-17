@@ -105,8 +105,6 @@ def active_class(class_id,user):
 def learning_context(value,user):
     if value.class_id:
         return active_class(value.class_id,user)
-    if value.topic.strip():
-        raise HTTPException(422,'Independent practice uses starter activities. Join a teacher-led class for optional AI questions.')
     return {'id':0,'grade':value.grade,'exam_year':value.exam_year,
             'course':course_for(value.course_id,value.grade,value.exam_year),
             'max_hints':3,'paused':False,'evaluation_enabled':False,'voice_input_enabled':False}

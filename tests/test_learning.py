@@ -466,9 +466,51 @@ class ClassroomTests(unittest.TestCase):
             self.assertEqual(r.status_code,200,r.text)
             self.assertEqual(r.json()['curriculum']['id'],course['id'])
         value={'course_id':'na-nssco','grade':10,'topic_id':'linear'}
-        for change in [{'grade':12},{'course_id':'unknown'},{'topic_id':'atoms'},{'topic':'Solve my homework'}]:
+        for change in [{'grade':12},{'course_id':'unknown'},{'topic_id':'atoms'}]:
             self.assertEqual(self.client.post('/learning',headers=self.learner,json={**value,**change}).status_code,422)
         self.assertEqual(self.client.post('/learning',json=value).status_code,401)
-        self.assertEqual(self.client.post('/explain',headers=self.learner,json={**value,'topic':'Solve my homework'}).status_code,422)
+
+    def test_independent_ai_question_uses_curriculum_and_reasoning_gates(self):
+        solo=self.register('solo_question')
+        value={'course_id':'cam-igcse-extended','grade':11,'exam_year':2027,'topic_id':'linear','topic':'Why must I subtract the same number on both sides?','consent':True}
+        with patch('main.make_plan',return_value=dict(LESSONS['linear'])) as provider:
+            r=self.client.post('/learning',headers=solo,json=value)
+        self.assertEqual(r.status_code,200,r.text)
+        self.assertEqual(provider.call_args.args[0],value['topic'])
+        course=provider.call_args.args[2]
+        self.assertEqual((course['id'],course['grade'],course['exam_year']),('cam-igcse-extended',11,2027))
+        self.assertEqual(provider.call_args.args[3],'linear')
+        self.assertEqual(r.json()['content_source'],'ai_general_support')
+        self.assertNotIn('explanation',r.json());self.assertFalse(main.store.get(r.json()['token']).consent)
+        h={**solo,'X-Learning-Token':r.json()['token']}
+        self.assertEqual(self.client.post('/learning/session',headers=h,json={'action':'hint'}).status_code,409)
+        self.assertEqual(self.client.post('/learning/session',headers=h,json={'action':'continue','attempted':False}).status_code,409)
+        self.client.post('/learning/session',headers=h,json={'action':'continue','attempted':True})
+        for i in range(3):
+            step=self.client.post('/learning/session',headers=h,json={'action':'hint'}).json()
+            self.assertEqual(len(step['hints']),i+1);self.assertNotIn('explanation',step)
+        self.assertEqual(self.client.post('/learning/session',headers=h,json={'action':'hint'}).status_code,409)
+        direct=self.client.post('/learning/session',headers=h,json={'action':'direct'}).json()
+        self.assertEqual(direct['direct_explanation'],LESSONS['linear']['explanation'])
+        self.assertEqual(self.client.get('/classes',headers=solo).json(),[])
+        self.assertEqual(self.client.get('/my-project-submissions',headers=solo).json(),[])
+
+    def test_independent_ai_direct_and_unavailable_starter_fallback(self):
+        value={'course_id':'na-nssco-physics','grade':10,'exam_year':2027,'topic_id':'motion','topic':'What does constant velocity mean?'}
+        with patch('main.direct_explanation',return_value='A safe explanation. Explain it back in your own words.') as provider:
+            r=self.client.post('/explain',headers=self.learner,json=value)
+        self.assertEqual(r.status_code,200,r.text)
+        self.assertEqual(r.json()['content_source'],'ai_general_support')
+        self.assertEqual(provider.call_args.args[2]['subject'],'physics')
+        for path,target in [('/learning','main.make_plan'),('/explain','main.direct_explanation')]:
+            with patch(target,side_effect=RuntimeError('PRIVATE PROVIDER SECRET')):
+                r=self.client.post(path,headers=self.learner,json=value)
+            self.assertEqual(r.status_code,503);self.assertNotIn('PRIVATE',r.text)
+            self.assertIn('starter practice',r.json()['detail'])
+            self.assertEqual(self.client.post(path,headers=self.learner,json={**value,'topic':''}).status_code,200)
+        with patch('main.make_plan') as provider:
+            self.assertEqual(self.client.post('/learning',headers=self.learner,json={**value,'topic':'x'*2001}).status_code,422)
+            self.assertEqual(self.client.post('/learning',headers=self.learner,json={**value,'course_id':'unknown'}).status_code,422)
+            provider.assert_not_called()
 
 if __name__=='__main__':unittest.main()

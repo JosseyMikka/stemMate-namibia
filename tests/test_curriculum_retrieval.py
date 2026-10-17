@@ -1,4 +1,5 @@
 import sys
+import os
 import types
 import unittest
 from unittest.mock import MagicMock, patch
@@ -17,7 +18,7 @@ class RetrievalTests(unittest.TestCase):
         embeddings=types.ModuleType('modules.embeddings');embeddings.embeddings=object()
         loader=types.ModuleType('modules.load_vectorstore');loader.PERSIST_DIR='/test-only'
         modules={'langchain_groq':groq,'langchain_community':community,'langchain_community.vectorstores':vectors,'modules.embeddings':embeddings,'modules.load_vectorstore':loader}
-        with patch.dict(sys.modules,modules):
+        with patch.dict(sys.modules,modules), patch.dict(os.environ,{'GROQ_API_KEY':'fictional-test-key'}):
             result=model_reply('quadratics','secondary','guide',{'id':'cam-igcse-extended','exam_year':2027,'subject':'mathematics','safety_notice':'TEST: paper only'},'quadratic')
         self.assertEqual(result,'A checked response')
         self.assertEqual(vectorstore.similarity_search.call_count,1)
@@ -34,3 +35,8 @@ class RetrievalTests(unittest.TestCase):
         for invalid in ({**LESSONS['linear'],'hints':['answer']}, {**LESSONS['linear'],'independent':LESSONS['linear']['application']}):
             with patch('modules.tutor.model_reply',return_value=json.dumps(invalid)):
                 with self.assertRaises(ValueError):make_plan('math','secondary')
+
+    def test_missing_provider_fails_before_loading_external_models(self):
+        with patch.dict(os.environ,{'GROQ_API_KEY':''}):
+            with self.assertRaisesRegex(ValueError,'not configured'):
+                model_reply('linear equations','secondary','guide')
