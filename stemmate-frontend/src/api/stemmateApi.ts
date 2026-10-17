@@ -10,7 +10,7 @@ export interface Lesson {
   challenge: string; hints: string[]; hints_used: number; max_hints: number;
   direct_used: boolean; explanation?: string; application?: string;
   independent?: string; application_explanation?: string;
-  independent_explanation?: string; direct_explanation?: string; content_source?: string;
+  independent_explanation?: string; direct_explanation?: string; similar_example?:string; content_source?: string;
 }
 export async function request<T>(path: string, method = 'GET', body?: unknown, _key?: string, token?: string): Promise<T> {
   const response = await fetch(`${API_URL}${path}`, {

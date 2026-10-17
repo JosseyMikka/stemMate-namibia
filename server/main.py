@@ -91,7 +91,7 @@ class Start(BaseModel):
     consent:bool=False
 
 class Action(BaseModel):
-    action:Literal['hint','direct','continue']
+    action:Literal['hint','direct','example','continue']
     attempted:bool=False
 
 
@@ -176,6 +176,8 @@ def act(value:Action,x_learning_token:str=Header(default=''),user=Depends(accoun
         result=response(s,classroom)
         if value.action=='direct':
             result['direct_explanation']=s.plan['explanation']
+        if value.action=='example':
+            result['similar_example']=s.plan['application']+'\n\n'+s.plan['application_explanation']
         return result
 
 @app.delete('/learning/session')

@@ -9,8 +9,8 @@ export default function ClassroomHub({user,onSignOut}: {user:User;onSignOut:()=>
   const [classes,setClasses]=useState<Classroom[]>([]);
   const [courses,setCourses]=useState<Course[]>([]);
   const [active,setActive]=useState<number|null>(null);
-  const [solo,setSolo]=useState(false);
-  const [pathway,setPathway]=useState('practice');
+  const [solo,setSolo]=useState(true);
+  const [view,setView]=useState('chat');
   const [name,setName]=useState('');
   const [grade,setGrade]=useState(10);
   const [subject,setSubject]=useState('mathematics');
@@ -46,20 +46,23 @@ export default function ClassroomHub({user,onSignOut}: {user:User;onSignOut:()=>
   const availableCourses=courses.filter(c=>c.subject===subject&&c.grades.includes(grade)&&c.exam_years.includes(year));
   const selectedCourse=availableCourses.find(c=>c.id===courseId)??availableCourses.find(c=>c.id.replace(/-202[67]$/,'')===courseId.replace(/-202[67]$/,''))??availableCourses[0];
   const classroom=classes.find(c=>c.id===active);
-  return <div className="shell"><a className="skip-link" href="#main">Skip to activity</a>
-    <header><div className="brand"><span className="brand-icon">SM</span><span>STEMMate<small>STEM • Namibia and Cambridge</small></span></div><div><span>{user.username} · {user.role}</span> <button className="secondary" disabled={busy} onClick={()=>void perform(async()=>{await request('/auth/logout','POST');onSignOut();})}>Sign out</button><button className="text-button" onClick={onSignOut}>Clear this device</button></div></header>
-    <main id="main" tabIndex={-1}><h1>{user.role==='teacher'?'Support their thinking':'What will you explore?'}</h1>
-      <p>{user.role==='teacher'?'Choose a class to practise together, set a project or review shared work. You lead the learning.':'Practise on your own or open a class activity. Your thinking comes first.'}</p>
+  return <div className="shell companion-shell"><a className="skip-link" href="#main">Skip to activity</a>
+    <header className="companion-sidebar"><div className="brand"><span className="brand-icon">SM</span><span>STEMMate<small>STEM • Namibia and Cambridge</small></span></div><nav aria-label="Main navigation"><button className={view==='chat'?'selected':'secondary'} aria-pressed={view==='chat'} onClick={()=>{setView('chat');if(!classroom)setSolo(true);}}>Chat</button><button className={view==='tools'?'selected':'secondary'} aria-pressed={view==='tools'} onClick={()=>{setView('tools');setSolo(false);}}>{user.role==='teacher'?'Teacher tools':'Classes, projects & feedback'}</button></nav><p className="sidebar-note">A little support.<br/>Your own thinking.</p><div className="sidebar-account"><span>{user.username} · {user.role}</span> <button className="secondary" disabled={busy} onClick={()=>void perform(async()=>{await request('/auth/logout','POST');onSignOut();})}>Sign out</button><button className="text-button" onClick={onSignOut}>Clear this device</button></div></header>
+    <main id="main" tabIndex={-1}>
+      <div hidden={view!=='chat'}>
+        <div hidden={!solo}><IndependentPractice courses={courses} user={user} active={view==='chat'&&solo}/></div>{classroom&&<div hidden={solo}><p className="chat-context">Class activity · {classroom.name}</p><Chat key={classroom.id} classroom={classroom} user={user} active={view==='chat'&&!solo}/></div>}
+        {!solo&&<button className="text-button" onClick={()=>setSolo(true)}>Practise independently instead</button>}
+      </div>
+      <div hidden={view!=='tools'}><h1>{user.role==='teacher'?'Teacher tools':'Classes, projects and feedback'}</h1><p>Keep class activities and feedback here. Return to Chat to work through a question. Save notebooks before changing class or refreshing.</p>
       {loading?<p role="status">Loading your classes…</p>:<>
-        {user.role==='learner'&&<nav aria-label="Learning space"><button aria-pressed={solo} className={solo?'':'secondary'} onClick={()=>setSolo(true)}>Practise on my own</button><button aria-pressed={!solo} className={!solo?'':'secondary'} onClick={()=>setSolo(false)}>With my teacher</button></nav>}
-        {!solo&&<><label htmlFor="active-class">{user.role==='teacher'?'Teaching class':'Your class'}</label><select id="active-class" value={active??''} onChange={e=>{setActive(e.target.value?Number(e.target.value):null);setPathway('practice');setMessage('');}}><option value="">Choose a class</option>{classes.map(c=><option key={c.id} value={c.id}>{c.name} · Grade {c.grade} · {c.course.subject_label}</option>)}</select>
+        <button className="secondary" onClick={()=>{setSolo(true);setView('chat');}}>Open independent chat</button>
+        {!solo&&<><label htmlFor="active-class">{user.role==='teacher'?'Teaching class':'Your class'}</label><select id="active-class" value={active??''} onChange={e=>{setActive(e.target.value?Number(e.target.value):null);setSolo(false);setMessage('');}}><option value="">Choose a class</option>{classes.map(c=><option key={c.id} value={c.id}>{c.name} · Grade {c.grade} · {c.course.subject_label}</option>)}</select>
         {classes.length===0&&<p>{user.role==='teacher'?'Add a class below to get started.':'No class yet? Practise on your own, or join with your teacher’s code below.'}</p>}</>}
       </>}
-      {user.role==='learner'&&<div hidden={!solo}><IndependentPractice courses={courses} user={user} active={solo}/></div>}
       {!solo&&<>
 
       <details className="card"><summary>{user.role==='teacher'?'Add a class':'Join a class'}</summary>
-        {user.role==='teacher'?<form onSubmit={e=>{e.preventDefault();void perform(async()=>{const result=await request<{classroom:Classroom;join_code:string}>('/classes','POST',{name,grade,course_id:selectedCourse?.id,exam_year:year});await refresh();setActive(result.classroom.id);setName('');setMessage(`Class created. Join code: ${result.join_code}. Valid for seven days; share only with your class.`);});}}>
+        {user.role==='teacher'?<form onSubmit={e=>{e.preventDefault();void perform(async()=>{const result=await request<{classroom:Classroom;join_code:string}>('/classes','POST',{name,grade,course_id:selectedCourse?.id,exam_year:year});await refresh();setActive(result.classroom.id);setSolo(false);setName('');setMessage(`Class created. Join code: ${result.join_code}. Valid for seven days; share only with your class.`);});}}>
           <label htmlFor="class-name">Class name (required)</label><input id="class-name" value={name} required maxLength={80} disabled={busy} onChange={e=>setName(e.target.value)} placeholder="For example: Grade 10 Mathematics A" />
           <label htmlFor="class-subject">Subject</label><select id="class-subject" value={subject} disabled={busy} onChange={e=>setSubject(e.target.value)}>{[['mathematics','Mathematics'],['physics','Physics'],['chemistry','Chemistry'],['biology','Biology'],['computing','Computing']].map(([id,label])=><option key={id} value={id}>{label}</option>)}</select>
           <label htmlFor="class-grade">School grade</label><select id="class-grade" value={grade} disabled={busy} onChange={e=>setGrade(Number(e.target.value))}>{[10,11,12].map(g=><option key={g}>{g}</option>)}</select>
@@ -68,7 +71,7 @@ export default function ClassroomHub({user,onSignOut}: {user:User;onSignOut:()=>
           <label htmlFor="exam-year">Examination year</label><select id="exam-year" value={year} disabled={busy} onChange={e=>setYear(Number(e.target.value))}><option>2026</option><option>2027</option></select>
           <p>School grade and Cambridge qualification are separate choices. Only listed exam years are supported. Starter topics cover part of the syllabus.</p>
           <button disabled={busy||loading||!selectedCourse}>Create class</button>
-        </form>:<form onSubmit={e=>{e.preventDefault();void perform(async()=>{const result=await request<Classroom>('/classes/join','POST',{code:joinCode});await refresh();setActive(result.id);setJoinCode('');setMessage('You joined the class.');});}}>
+        </form>:<form onSubmit={e=>{e.preventDefault();void perform(async()=>{const result=await request<Classroom>('/classes/join','POST',{code:joinCode});await refresh();setActive(result.id);setSolo(false);setJoinCode('');setMessage('You joined the class.');});}}>
           <label htmlFor="join-code">Class code (required)</label><input id="join-code" value={joinCode} required minLength={8} maxLength={32} autoComplete="off" autoCapitalize="characters" disabled={busy} onChange={e=>setJoinCode(e.target.value)} /><button disabled={busy}>Join class</button>
         </form>}
       </details>
@@ -83,8 +86,9 @@ export default function ClassroomHub({user,onSignOut}: {user:User;onSignOut:()=>
         {user.role==='teacher'&&<><TeacherControls key={classroom.id} classroom={classroom} onUpdate={updated=>setClasses(items=>items.map(c=>c.id===updated.id?updated:c))} /></>}
         <details className="space-settings"><summary>Class options</summary><button className="text-button" disabled={busy} onClick={()=>void perform(async()=>{await refresh();setMessage('Class list refreshed.');})}>Refresh classes</button>
         {user.role==='learner'&&<button className="text-button" disabled={busy} onClick={()=>void perform(async()=>{await request(`/classes/${classroom.id}/members/${user.id}`,'DELETE');setActive(null);await refresh();setMessage('You left the class. Your teacher can invite you again.');})}>Leave this class</button>}</details>
-        <fieldset><legend>Today’s activity</legend><p>Your drafts stay here when changing activities. Save project notes before changing class, refreshing or signing out.</p><label><input type="radio" name="pathway" checked={pathway==='practice'} onChange={()=>setPathway('practice')}/> Think it through</label><label><input type="radio" name="pathway" checked={pathway==='project'} onChange={()=>setPathway('project')}/> Projects and feedback</label></fieldset>
-        <div hidden={pathway!=='practice'}><Chat key={classroom.id} classroom={classroom} user={user} active={!solo&&pathway==='practice'}/></div><div hidden={pathway!=='project'}><ProjectPathway key={classroom.id} classroom={classroom} user={user} active={!solo&&pathway==='project'}/></div>
+        <ProjectPathway key={classroom.id} classroom={classroom} user={user} active={view==='tools'&&!solo}/>
+
       </section>}
+      </div>
     </main></div>;
 }

@@ -202,3 +202,11 @@ Learners sign in with an alias and choose **Practise on my own** or **With my te
 Teacher-led classes use a compact class selector, **Think it through**, and **Projects and feedback**. Project editing, curriculum details, account/class administration and notebook file tools are disclosed when needed. **Review shared work** retains voluntary sharing, teacher judgement and versioned feedback. Switching learning spaces or activity views preserves local drafts; changing class, refreshing or signing out still requires saving/copying work.
 
 The teacher chooses the context, organises making and discussion, and assesses actual artifacts and independent understanding. STEMMate prompts reasoning and provides support; it does not assign automatic grades or manage a school gradebook, attendance, teams or project schedules.
+
+### Chat-first interface
+
+Chat opens immediately with a visible default context (Grade 10 Mathematics, Namibia NSSCO, exam 2027). Use Change subject or curriculum to choose another context; Topic and support selects starter/topic scope and reading support. No class is needed for independent use.
+
+The bottom support bar offers Think with me, Give me a hint, Explain simply, Similar example, Check my reasoning and Try on my own. Hints/examples unlock after an attempt. Similar example shows the worked application task and records worked support, so that application is supported practice; independent transfer uses a different task. Check my reasoning is a transparent self-reflection checklist, not automated assessment of learner prose. Try on my own advances only after an application attempt; server gates still apply. Earlier question/notes/help are hidden during the independent check.
+
+Teacher tools, and learners’ Classes, projects & feedback, are secondary sidebar views. Existing class permissions, private notebooks, feedback and privacy controls are retained. Switching views preserves local drafts, but changing class/curriculum, refreshing or signing out requires save/copy. Chats are temporary and no persistent chat-history list is claimed.

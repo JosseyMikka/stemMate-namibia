@@ -16,3 +16,7 @@ assert.match(render('1. First\n2. Second'), /<ol>/);
 assert.match(render('$2H_2+O_2\\rightarrow2H_2O$'), /<math/);
 assert.match(render('```text\ntotal <- 0\nOUTPUT total\n```'), /<pre><code/);
 console.log('Math, accessibility markup, malformed input and content safety checks passed.');
+
+const currency = render('A hire costs N$5 plus N$2 per hour. Solve $5+2h=15$.');
+assert.match(currency, /N\$5 plus N\$2 per hour/);
+assert.equal((currency.match(/<math/g)??[]).length, 1);

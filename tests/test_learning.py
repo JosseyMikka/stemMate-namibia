@@ -513,4 +513,19 @@ class ClassroomTests(unittest.TestCase):
             self.assertEqual(self.client.post('/learning',headers=self.learner,json={**value,'course_id':'unknown'}).status_code,422)
             provider.assert_not_called()
 
+    def test_similar_example_is_supported_practice_and_frozen_in_independent_check(self):
+        initial=self.start()
+        self.assertEqual(self.action('example').status_code,409)
+        self.action()
+        result=self.action('example').json()
+        self.assertIn(LESSONS['linear']['application'],result['similar_example'])
+        self.assertIn(LESSONS['linear']['application_explanation'],result['similar_example'])
+        self.assertTrue(result['direct_used']);self.assertEqual(result['stage'],'explain')
+        self.assertNotIn('similar_example',self.client.get('/learning/session',headers=self.headers).json())
+        for _ in range(3):self.action()
+        current=self.client.get('/learning/session',headers=self.headers).json()
+        self.assertEqual(current['stage'],'independent')
+        for action in ['hint','direct','example']:self.assertEqual(self.action(action).status_code,409)
+        self.assertNotIn('explanation',current);self.assertEqual(current['hints'],[])
+
 if __name__=='__main__':unittest.main()

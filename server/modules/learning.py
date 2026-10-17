@@ -68,6 +68,11 @@ def advance(s, action, attempted, max_hints):
             raise ValueError('Hints are only available after an attempt, up to the teacher limit.')
         s.hints += 1
         return
+    if action == 'example':
+        if s.stage not in ('explain','feedback','apply'):
+            raise ValueError('Try the question first. Examples are unavailable during the independent check.')
+        s.direct_used = True
+        return
     if action == 'direct':
         if s.stage in ('independent', 'complete'):
             raise ValueError('Finish the independent check before viewing more help.')

@@ -88,3 +88,9 @@ Class cards are replaced by a class selector. Teachers open Projects and feedbac
 Independent starter practice requires a learner account but no teacher, class or invitation. It uses validated curriculum context with server-owned reasoning stages and owner-scoped expiring sessions. Optional STEM questions use the configured AI provider and validated subject/topic/curriculum context. First thoughts stay local and seed the first attempt; only the question and relevant curriculum material go to AI. It has no class evaluation collection or project submission channel. Local spoken prompts and direct explanations remain available. It is formative practice with partial syllabus coverage, not verified attainment.
 
 Independent question verification: generated plans still release a question first, progressive hints only after an attempt, direct support on request, and separate application/independent checks. API tests use simulated provider responses; live AI quality is not verified. With no provider credential, requests fail promptly before loading external models, preserve writing in the browser and offer starter practice.
+
+### Chat and secondary project views
+
+The sidebar opens Chat first. Learners open Classes, projects & feedback to select a class, join, view projects or read feedback. Teachers use Teacher tools to select any of their subject/grade classes, edit briefs, review work and change privacy settings. Chat then uses the selected class context; independent chat remains available separately. No existing project records were migrated or deleted.
+
+Bottom chat actions retain server stage gates. A similar worked example is the application task with its explanation, marked as worked support; it is never counted as independent evidence. The independent task remains separate. Check my reasoning supplies a self-check prompt without transmitting learner prose or claiming an automatic judgement.

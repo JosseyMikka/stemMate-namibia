@@ -6,7 +6,7 @@ import rehypeKatex from 'rehype-katex';
 // a block; normalize outside code so those equations retain display layout.
 function normalizeMath(content: string) {
   return content.split(/(`{3,}[\s\S]*?`{3,}|~{3,}[\s\S]*?~{3,}|`+[^`\n]*`+)/g)
-    .map((part, index) => index % 2 ? part : part.replace(/\$\$([\s\S]*?)\$\$/g,
+    .map((part, index) => index % 2 ? part : part.replace(/(?<!\\)\bN\$(?=\d)/g, 'N\\$').replace(/\$\$([\s\S]*?)\$\$/g,
       (_, math: string) => `\n\n$$\n${math.trim()}\n$$\n\n`)).join('');
 }
 
