@@ -434,4 +434,41 @@ class ClassroomTests(unittest.TestCase):
             self.assertEqual(self.client.put(base+f'/{sid}/review',headers=self.teacher,json=review).status_code,403)
         with accounts.db() as c:self.assertEqual(json.loads(c.execute('SELECT review FROM project_submissions WHERE id=?',(sid,)).fetchone()[0]),{})
 
+    def test_independent_practice_without_class_or_teacher(self):
+        learner=self.register('independent_learner')
+        self.assertEqual(self.client.get('/classes',headers=learner).json(),[])
+        value={'course_id':'na-nssco','grade':10,'exam_year':2027,'topic_id':'linear','consent':True}
+        r=self.client.post('/learning',headers=learner,json=value)
+        self.assertEqual(r.status_code,200,r.text)
+        token=r.json()['token'];headers={**learner,'X-Learning-Token':token}
+        self.assertEqual(r.json()['class_id'],0)
+        self.assertFalse(main.store.get(token).consent)
+        self.assertNotIn('explanation',r.json())
+        self.assertEqual(self.client.post('/learning/session',headers=headers,json={'action':'hint'}).status_code,409)
+        self.assertEqual(self.client.get('/learning/session',headers={**self.learner,'X-Learning-Token':token}).status_code,403)
+        for expected in ['explain','feedback','apply','independent','complete']:
+            step=self.client.post('/learning/session',headers=headers,json={'action':'continue','attempted':True})
+            self.assertEqual(step.json()['stage'],expected)
+            if expected=='independent':
+                self.assertEqual(self.client.post('/learning/session',headers=headers,json={'action':'direct'}).status_code,409)
+        direct=self.client.post('/explain',headers=learner,json=value)
+        self.assertEqual(direct.status_code,200);self.assertIn('answer',direct.json())
+        with accounts.db() as c:
+            self.assertEqual(c.execute('SELECT COUNT(*) FROM enrolments').fetchone()[0],1)
+            self.assertEqual(c.execute('SELECT COUNT(*) FROM project_submissions').fetchone()[0],0)
+        self.assertEqual(self.client.delete('/learning/session',headers=headers).status_code,200)
+        self.assertEqual(self.client.get('/learning/session',headers=headers).status_code,404)
+
+    def test_independent_practice_curriculum_and_ai_boundaries(self):
+        for course in catalogue():
+            value={'course_id':course['id'],'grade':course['grades'][0],'exam_year':course['exam_years'][0],'topic_id':course['topics'][0]['id']}
+            r=self.client.post('/learning',headers=self.learner,json=value)
+            self.assertEqual(r.status_code,200,r.text)
+            self.assertEqual(r.json()['curriculum']['id'],course['id'])
+        value={'course_id':'na-nssco','grade':10,'topic_id':'linear'}
+        for change in [{'grade':12},{'course_id':'unknown'},{'topic_id':'atoms'},{'topic':'Solve my homework'}]:
+            self.assertEqual(self.client.post('/learning',headers=self.learner,json={**value,**change}).status_code,422)
+        self.assertEqual(self.client.post('/learning',json=value).status_code,401)
+        self.assertEqual(self.client.post('/explain',headers=self.learner,json={**value,'topic':'Solve my homework'}).status_code,422)
+
 if __name__=='__main__':unittest.main()

@@ -194,3 +194,11 @@ SQLite pages may retain deleted bytes until maintenance. Schools must establish 
 secure-erasure, consent, access and retention procedures before deployment. App opt-in
 is not a replacement for institutional/guardian consent or a research protocol.
 The hosting operator can access server storage; restrict it accordingly.
+
+### A smaller thinking companion
+
+Learners sign in with an alias and choose **Practise on my own** or **With my teacher**. Independent practice needs no class code: select subject, grade, exam year and qualification, then use the original starter reasoning activities or an accessible direct explanation. It makes no AI calls, reports no class activity and accepts no submissions; local spoken prompts are available, external microphone transcription is off. A learner account and server connection are still required.
+
+Teacher-led classes use a compact class selector, **Think it through**, and **Projects and feedback**. Project editing, curriculum details, account/class administration and notebook file tools are disclosed when needed. **Review shared work** retains voluntary sharing, teacher judgement and versioned feedback. Switching learning spaces or activity views preserves local drafts; changing class, refreshing or signing out still requires saving/copying work.
+
+The teacher chooses the context, organises making and discussion, and assesses actual artifacts and independent understanding. STEMMate prompts reasoning and provides support; it does not assign automatic grades or manage a school gradebook, attendance, teams or project schedules.

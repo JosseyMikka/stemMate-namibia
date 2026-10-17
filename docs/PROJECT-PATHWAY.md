@@ -80,3 +80,9 @@ Retention is measured from each snapshot's submission date. Shortening it immedi
 Stored snapshots from earlier brief versions remain readable with their original feedback and criteria, but cannot restore into a notebook for a different brief version. Initial sharing/privacy saves stay disabled until server settings have loaded.
 
 Browser verification used separate fictional teacher/learner accounts and a disposable QA class: initial submission, teacher rubric feedback, learner receipt and restore, revised submission, preserved earlier feedback, changed-retention acknowledgement, disabled acceptance and older-brief restore rejection. Live API checks exercised learner withdrawal and class-wide deletion, followed by empty-list confirmation in both browser views. Existing demo class work was preserved. Automated tests cover peer/other-teacher denial, expiry, stale writes and concurrent policy/enrolment/brief changes.
+
+### Simplified companion interface
+
+Class cards are replaced by a class selector. Teachers open Projects and feedback, choose a project and use Review shared work. The project editor, objectives, resources/criteria and notebook save/resume controls are collapsed until needed. Teacher settings and privacy controls remain available. No assessment records were removed by the interface changes. Activity views preserve drafts while mounted; save/copy before changing class or refreshing. Hidden activity voice controls remount to stop microphone/speech activity.
+
+Independent starter practice requires a learner account but no teacher, class or invitation. It uses validated curriculum context with server-owned reasoning stages and owner-scoped expiring sessions. It has no AI questions, class evaluation collection or project submission channel. Local spoken prompts and direct explanations remain available. It is formative practice with partial syllabus coverage, not verified attainment.

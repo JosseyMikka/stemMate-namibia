@@ -3,11 +3,13 @@ import {request, type User, type Course, type Classroom} from '../api/stemmateAp
 import TeacherControls from './TeacherControls';
 import Chat from './Chat';
 import ProjectPathway from './ProjectPathway';
+import IndependentPractice from './IndependentPractice';
 import StoredWorkPrivacy from './StoredWorkPrivacy';
 export default function ClassroomHub({user,onSignOut}: {user:User;onSignOut:()=>void}) {
   const [classes,setClasses]=useState<Classroom[]>([]);
   const [courses,setCourses]=useState<Course[]>([]);
   const [active,setActive]=useState<number|null>(null);
+  const [solo,setSolo]=useState(false);
   const [pathway,setPathway]=useState('practice');
   const [name,setName]=useState('');
   const [grade,setGrade]=useState(10);
@@ -44,16 +46,19 @@ export default function ClassroomHub({user,onSignOut}: {user:User;onSignOut:()=>
   const availableCourses=courses.filter(c=>c.subject===subject&&c.grades.includes(grade)&&c.exam_years.includes(year));
   const selectedCourse=availableCourses.find(c=>c.id===courseId)??availableCourses.find(c=>c.id.replace(/-202[67]$/,'')===courseId.replace(/-202[67]$/,''))??availableCourses[0];
   const classroom=classes.find(c=>c.id===active);
-  return <div className="shell"><a className="skip-link" href="#main">Skip to classes</a>
+  return <div className="shell"><a className="skip-link" href="#main">Skip to activity</a>
     <header><div className="brand"><span className="brand-icon">SM</span><span>STEMMate<small>STEM • Namibia and Cambridge</small></span></div><div><span>{user.username} · {user.role}</span> <button className="secondary" disabled={busy} onClick={()=>void perform(async()=>{await request('/auth/logout','POST');onSignOut();})}>Sign out</button><button className="text-button" onClick={onSignOut}>Clear this device</button></div></header>
-    <main id="main" tabIndex={-1}><h1>{user.role==='teacher'?'Your teaching classes':'Your learning classes'}</h1>
-      <p>{user.role==='teacher'?'Use one account for all your subjects and grades. Each class has its own syllabus, learners and settings.':'Join with a code from your teacher, then choose your class. Your classmates cannot see your work.'}</p>
+    <main id="main" tabIndex={-1}><h1>{user.role==='teacher'?'Support their thinking':'What will you explore?'}</h1>
+      <p>{user.role==='teacher'?'Choose a class to practise together, set a project or review shared work. You lead the learning.':'Practise on your own or open a class activity. Your thinking comes first.'}</p>
       {loading?<p role="status">Loading your classes…</p>:<>
-        <button className="secondary" disabled={busy} onClick={()=>void perform(async()=>{await refresh();setMessage('Class list refreshed.');})}>Refresh classes</button>
-        <div className="class-grid">{classes.map(c=><button key={c.id} className={active===c.id?'class-card selected':'class-card'} aria-pressed={active===c.id} onClick={()=>{setActive(c.id);setPathway('practice');setMessage('');requestAnimationFrame(()=>activityRef.current?.focus());}}><strong>{c.name}</strong><span>Grade {c.grade} · {c.course.pathway}</span><span>{c.course.qualification} · {c.course.syllabus_subject} {c.course.code}</span><span>Examination: {c.exam_year}</span></button>)}</div>
-        {classes.length===0 && <p>No classes yet. {user.role==='teacher'?'Create your first class below.':'Ask your teacher for a class code.'}</p>}
+        {user.role==='learner'&&<nav aria-label="Learning space"><button aria-pressed={solo} className={solo?'':'secondary'} onClick={()=>setSolo(true)}>Practise on my own</button><button aria-pressed={!solo} className={!solo?'':'secondary'} onClick={()=>setSolo(false)}>With my teacher</button></nav>}
+        {!solo&&<><label htmlFor="active-class">{user.role==='teacher'?'Teaching class':'Your class'}</label><select id="active-class" value={active??''} onChange={e=>{setActive(e.target.value?Number(e.target.value):null);setPathway('practice');setMessage('');}}><option value="">Choose a class</option>{classes.map(c=><option key={c.id} value={c.id}>{c.name} · Grade {c.grade} · {c.course.subject_label}</option>)}</select>
+        {classes.length===0&&<p>{user.role==='teacher'?'Add a class below to get started.':'No class yet? Practise on your own, or join with your teacher’s code below.'}</p>}</>}
       </>}
-      <details className="card"><summary>{user.role==='teacher'?'Create a subject class':'Join a class'}</summary>
+      {user.role==='learner'&&<div hidden={!solo}><IndependentPractice courses={courses} user={user} active={solo}/></div>}
+      {!solo&&<>
+
+      <details className="card"><summary>{user.role==='teacher'?'Add a class':'Join a class'}</summary>
         {user.role==='teacher'?<form onSubmit={e=>{e.preventDefault();void perform(async()=>{const result=await request<{classroom:Classroom;join_code:string}>('/classes','POST',{name,grade,course_id:selectedCourse?.id,exam_year:year});await refresh();setActive(result.classroom.id);setName('');setMessage(`Class created. Join code: ${result.join_code}. Valid for seven days; share only with your class.`);});}}>
           <label htmlFor="class-name">Class name (required)</label><input id="class-name" value={name} required maxLength={80} disabled={busy} onChange={e=>setName(e.target.value)} placeholder="For example: Grade 10 Mathematics A" />
           <label htmlFor="class-subject">Subject</label><select id="class-subject" value={subject} disabled={busy} onChange={e=>setSubject(e.target.value)}>{[['mathematics','Mathematics'],['physics','Physics'],['chemistry','Chemistry'],['biology','Biology'],['computing','Computing']].map(([id,label])=><option key={id} value={id}>{label}</option>)}</select>
@@ -68,16 +73,18 @@ export default function ClassroomHub({user,onSignOut}: {user:User;onSignOut:()=>
         </form>}
       </details>
       {user.role==='learner'&&<StoredWorkPrivacy/>}
+      </>}
       <p role="status">{message}</p>{error&&<p role="alert" ref={errorRef} tabIndex={-1} className="error">{error}</p>}
-      {classroom&&<section key={classroom.id} ref={activityRef} tabIndex={-1} className="classroom" aria-label={classroom.name}>
-        <h2>{classroom.name}</h2><p>{classroom.course.pathway} · {classroom.course.qualification} · {classroom.course.syllabus_subject} {classroom.course.code} · Grade {classroom.grade} · Exam {classroom.exam_year}</p>
+      {classroom&&<section hidden={solo} key={classroom.id} ref={activityRef} tabIndex={-1} className="classroom" aria-label={classroom.name}>
+        <h2>{classroom.name}</h2><details><summary>Curriculum and safety</summary><p>{classroom.course.pathway} · {classroom.course.qualification} · {classroom.course.syllabus_subject} {classroom.course.code} · Grade {classroom.grade} · Exam {classroom.exam_year}</p>
         <p className="privacy">{classroom.course.safety_notice}</p>
         <p className="privacy">{classroom.course.coverage_notice} The catalogue identifies a syllabus; it does not certify full coverage.</p>
-        <p><a href={classroom.course.source} target="_blank" rel="noreferrer">Open the official syllabus source (new tab)</a></p>
-        {user.role==='teacher'&&<><TeacherControls key={classroom.id} classroom={classroom} onUpdate={updated=>setClasses(items=>items.map(c=>c.id===updated.id?updated:c))} /><p>Teacher preview: your practice does not contribute to learner activity counts.</p></>}
-        {user.role==='learner'&&<button className="text-button" disabled={busy} onClick={()=>void perform(async()=>{await request(`/classes/${classroom.id}/members/${user.id}`,'DELETE');setActive(null);await refresh();setMessage('You left the class. Your teacher can invite you again.');})}>Leave this class</button>}
-        <fieldset><legend>Learning pathway</legend><p>Export project notes before switching; unfinished work is held only in this browser view.</p><label><input type="radio" name="pathway" checked={pathway==='practice'} onChange={()=>setPathway('practice')}/> Guided practice</label><label><input type="radio" name="pathway" checked={pathway==='project'} onChange={()=>setPathway('project')}/> Teacher-led project</label></fieldset>
-        {pathway==='practice'?<Chat key={classroom.id} classroom={classroom} user={user}/>:<ProjectPathway key={classroom.id} classroom={classroom} user={user}/>}
+        <p><a href={classroom.course.source} target="_blank" rel="noreferrer">Open the official syllabus source (new tab)</a></p></details>
+        {user.role==='teacher'&&<><TeacherControls key={classroom.id} classroom={classroom} onUpdate={updated=>setClasses(items=>items.map(c=>c.id===updated.id?updated:c))} /></>}
+        <details className="space-settings"><summary>Class options</summary><button className="text-button" disabled={busy} onClick={()=>void perform(async()=>{await refresh();setMessage('Class list refreshed.');})}>Refresh classes</button>
+        {user.role==='learner'&&<button className="text-button" disabled={busy} onClick={()=>void perform(async()=>{await request(`/classes/${classroom.id}/members/${user.id}`,'DELETE');setActive(null);await refresh();setMessage('You left the class. Your teacher can invite you again.');})}>Leave this class</button>}</details>
+        <fieldset><legend>Today’s activity</legend><p>Your drafts stay here when changing activities. Save project notes before changing class, refreshing or signing out.</p><label><input type="radio" name="pathway" checked={pathway==='practice'} onChange={()=>setPathway('practice')}/> Think it through</label><label><input type="radio" name="pathway" checked={pathway==='project'} onChange={()=>setPathway('project')}/> Projects and feedback</label></fieldset>
+        <div hidden={pathway!=='practice'}><Chat key={classroom.id} classroom={classroom} user={user} active={!solo&&pathway==='practice'}/></div><div hidden={pathway!=='project'}><ProjectPathway key={classroom.id} classroom={classroom} user={user} active={!solo&&pathway==='project'}/></div>
       </section>}
     </main></div>;
 }

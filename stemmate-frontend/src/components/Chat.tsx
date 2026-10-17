@@ -1,4 +1,4 @@
-import { lazy, Suspense, useRef, useState } from 'react';
+import { lazy, Suspense, useId, useRef, useState } from 'react';
 import { request, type Lesson, type Classroom, type User } from '../api/stemmateApi';
 const MathContent = lazy(() => import('./MessageContent'));
 function MessageContent({ content }: {content: string}) {
@@ -11,7 +11,8 @@ const labels: Record<string, string> = {
   attempt: 'Predict or try', explain: 'Explain your thinking', feedback: 'Compare and reflect',
   apply: 'Apply your learning', independent: 'Try independently', complete: 'Review your learning',
 };
-export default function Chat({classroom, user}: {classroom: Classroom; user: User}) {
+export default function Chat({classroom, user, independent=false, active=true}: {classroom: Classroom; user: User; independent?:boolean; active?:boolean}) {
+  const formId=useId();
   const [topic, setTopic] = useState('');
   const [band, setBand] = useState('secondary');
   const [topicId, setTopicId] = useState(classroom.course.topics[0].id);
@@ -38,10 +39,10 @@ export default function Chat({classroom, user}: {classroom: Classroom; user: Use
   function start() {
     void run(async () => {
       if (mode === 'direct') {
-        const result = await request<{answer: string}>('/explain', 'POST', {class_id: classroom.id, topic_id: topicId, topic, band});
+        const result = await request<{answer: string}>('/explain', 'POST', {class_id: classroom.id, course_id:classroom.course_id, grade:classroom.grade, exam_year:classroom.exam_year, topic_id: topicId, topic, band});
         setAnswer(result.answer);
       } else {
-        const result = await request<Lesson & {token: string}>('/learning', 'POST', {class_id: classroom.id, topic_id: topicId, topic, band, consent: user.role === 'learner' && consent});
+        const result = await request<Lesson & {token: string}>('/learning', 'POST', {class_id: classroom.id, course_id:classroom.course_id, grade:classroom.grade, exam_year:classroom.exam_year, topic_id: topicId, topic, band, consent: user.role === 'learner' && consent});
         setLesson(result); setToken(result.token);
       }
     });
@@ -65,23 +66,25 @@ export default function Chat({classroom, user}: {classroom: Classroom; user: Use
   }
   const prompt = lesson?.stage === 'apply' ? lesson.application : lesson?.stage === 'independent' ? lesson.independent : lesson?.challenge;
   return <section className="learning-area" aria-label="Learning activity">
-      <p className="eyebrow">YOUR NAMIBIAN STEM LEARNING PARTNER</p>
-      <h2>Build understanding, one thought at a time.</h2>
+      <p className="eyebrow">YOUR STEM THINKING COMPANION</p>
+      <h2>Think it through</h2>
       <p className="intro">Try an idea, get a little support, and see what you can do on your own.</p>
-      <aside className="privacy">Keep your name, school and contact details out of your work. AI can make mistakes; check important ideas with your teacher. Use supplied data for science activities; practical work requires your teacher’s approval and supervision.</aside>
+      <aside className="privacy">Keep your name, school and contact details out of your work. Check uncertain ideas with a teacher or trusted adult. Use supplied data and paper models; practical science requires qualified adult approval and supervision.</aside>
       {!lesson && !answer && <section className="card">
         <h2 ref={focusTarget} tabIndex={-1}>What are you exploring?</h2>
         <form onSubmit={e => {e.preventDefault(); start();}}>
           <fieldset disabled={busy}><legend>Choose how to learn</legend><div className="mode-options">
-            <label><input type="radio" name="mode" value="guided" checked={mode === 'guided'} onChange={() => setMode('guided')} /> Guide my thinking <small>Try → hints → explain → apply → independent check</small></label>
-            <label><input type="radio" name="mode" value="direct" checked={mode === 'direct'} onChange={() => setMode('direct')} /> Explain it directly <small>Accessible, step-by-step support when you need it</small></label>
+            <label><input type="radio" name={`${formId}-mode`} value="guided" checked={mode === 'guided'} onChange={() => setMode('guided')} /> Guide my thinking <small>Try → hints → explain → apply → independent check</small></label>
+            <label><input type="radio" name={`${formId}-mode`} value="direct" checked={mode === 'direct'} onChange={() => setMode('direct')} /> Explain it directly <small>Accessible, step-by-step support when you need it</small></label>
           </div></fieldset>
-          <label htmlFor="band">Reading support for optional AI questions</label><select id="band" value={band} disabled={busy} onChange={e => setBand(e.target.value)}><option value="primary">Simpler English — short, concrete steps</option><option value="secondary">Standard explanation — build connections</option><option value="senior">Detailed explanation — deeper reasoning</option></select>
-          <label htmlFor="practice-topic">Practice topic</label><select id="practice-topic" disabled={busy} value={topicId} onChange={e=>setTopicId(e.target.value)}>{classroom.course.topics.map(t=><option key={t.id} value={t.id}>{t.label}</option>)}</select>
+          <label htmlFor={`${formId}-practice-topic`}>Practice topic</label><select id={`${formId}-practice-topic`} disabled={busy} value={topicId} onChange={e=>setTopicId(e.target.value)}>{classroom.course.topics.map(t=><option key={t.id} value={t.id}>{t.label}</option>)}</select>
+          {!independent&&<details><summary>Ask an AI question (optional)</summary><label htmlFor={`${formId}-band`}>Reading support for optional AI questions</label><select id={`${formId}-band`} value={band} disabled={busy} onChange={e => setBand(e.target.value)}><option value="primary">Simpler English — short, concrete steps</option><option value="secondary">Standard explanation — build connections</option><option value="senior">Detailed explanation — deeper reasoning</option></select>
+
           <p>Leave the optional question blank for an original starter lesson without an AI call. AI responses require teacher review for syllabus accuracy.</p>
-          <label htmlFor="topic">Optional question for the AI tutor</label><textarea id="topic" value={topic} maxLength={2000} disabled={busy} onChange={e => setTopic(e.target.value)} placeholder="Leave blank for starter practice. For AI help, ask a question about the selected topic." />
-          <VoiceTools allowDictation={classroom.voice_input_enabled} key={mode + band + String(busy) + String(classroom.voice_input_enabled)} disabled={busy} onTranscript={text => setTopic(previous => `${previous}${previous ? ' ' : ''}${text}`.slice(0, 2000))} />
-          {mode === 'guided' && user.role === 'learner' && <label className="check"><input type="checkbox" checked={consent} disabled={busy} onChange={e => setConsent(e.target.checked)} /> Share aggregate activity counts if my teacher enables evaluation. Optional; no answers or personal details are included. Ask your teacher or guardian before opting in.</label>}
+          <label htmlFor={`${formId}-topic`}>Optional question for the AI tutor</label><textarea id={`${formId}-topic`} value={topic} maxLength={2000} disabled={busy} onChange={e => setTopic(e.target.value)} placeholder="Leave blank for starter practice. For AI help, ask a question about the selected topic." />
+          <VoiceTools allowDictation={classroom.voice_input_enabled} key={String(active) + mode + band + String(busy) + String(classroom.voice_input_enabled)} disabled={busy||!active} onTranscript={text => setTopic(previous => `${previous}${previous ? ' ' : ''}${text}`.slice(0, 2000))} />
+          </details>}
+          {mode === 'guided' && user.role === 'learner' && classroom.evaluation_enabled && <label className="check"><input type="checkbox" checked={consent} disabled={busy} onChange={e => setConsent(e.target.checked)} /> Share aggregate activity counts if my teacher enables evaluation. Optional; no answers or personal details are included. Ask your teacher or guardian before opting in.</label>}
           <button disabled={busy || classroom.paused}>{busy ? 'Preparing…' : mode === 'guided' ? 'Start thinking →' : 'Show an explanation'}</button>
         </form>
       </section>}
@@ -104,9 +107,9 @@ export default function Chat({classroom, user}: {classroom: Classroom; user: Use
             <h3>Independent check: compare after your attempt</h3><MessageContent content={lesson.independent ?? ''} /><MessageContent content={lesson.independent_explanation ?? ''} />
             <p>Can you explain every step without looking? Ask your teacher to review uncertain answers and try another problem later without help.</p>
           </> : <form onSubmit={e => {e.preventDefault(); act('continue');}}>
-            <VoiceTools allowDictation={classroom.voice_input_enabled} key={lesson.stage + String(busy) + String(classroom.voice_input_enabled)} disabled={busy} readText={prompt} onTranscript={text => setWork(previous => `${previous}${previous ? ' ' : ''}${text}`.slice(0, 4000))} />
-            <label htmlFor="work">{lesson.stage === 'feedback' ? 'Your reflection (optional)' : 'Your thinking (required)'}</label>
-            <textarea id="work" value={work} maxLength={4000} disabled={busy} required={lesson.stage !== 'feedback'} onChange={e => setWork(e.target.value)} placeholder="Write a short attempt, explain your idea, or say where you are stuck." />
+            <VoiceTools allowDictation={classroom.voice_input_enabled} key={String(active) + lesson.stage + String(busy) + String(classroom.voice_input_enabled)} disabled={busy||!active} readText={prompt} onTranscript={text => setWork(previous => `${previous}${previous ? ' ' : ''}${text}`.slice(0, 4000))} />
+            <label htmlFor={`${formId}-work`}>{lesson.stage === 'feedback' ? 'Your reflection (optional)' : 'Your thinking (required)'}</label>
+            <textarea id={`${formId}-work`} value={work} maxLength={4000} disabled={busy} required={lesson.stage !== 'feedback'} onChange={e => setWork(e.target.value)} placeholder="Write a short attempt, explain your idea, or say where you are stuck." />
             <button disabled={busy || (lesson.stage !== 'feedback' && !work.trim())}>{busy ? 'Saving step…' : lesson.stage === 'independent' ? 'Submit attempt and compare' : 'Continue →'}</button>
           </form>}
           {!['independent', 'complete'].includes(lesson.stage) && <button className="text-button" disabled={busy} onClick={() => act('direct')}>I need a direct explanation</button>}
@@ -116,6 +119,6 @@ export default function Chat({classroom, user}: {classroom: Classroom; user: Use
       {notes.length > 0 && lesson?.stage !== 'independent' && <details className="card"><summary>Your thinking in this browser</summary>{notes.map((n, i) => <div key={i}><h3>{n.label}</h3><p className="learner-text">{n.text}</p></div>)}</details>}
       {(lesson || answer) && <button className="secondary" disabled={busy} onClick={reset}>Clear this session and start again</button>}
       {busy && <p role="status" aria-live="polite">Working on your request…</p>}{error && <p ref={errorTarget} tabIndex={-1} role="alert" className="error">{error}</p>}
-      <footer>Optional AI questions are sent to our AI provider with material tagged for this syllabus, when available. Starter lessons use original practice content. Your written attempts stay in this browser. Optional voice input may use your browser’s external transcription service. Temporary lesson plans expire after one hour; clearing a session deletes its plan. No chat history is saved.</footer>
+      {independent?<footer>Original starter practice. Your written attempts stay in this browser and are not reported to a teacher. Copy your work before leaving. This is practice, not a verified assessment.</footer>:<footer>Optional AI questions are sent to our AI provider with material tagged for this syllabus, when available. Starter lessons use original practice content. Your written attempts stay in this browser. Optional voice input may use your browser’s external transcription service. Temporary lesson plans expire after one hour; clearing a session deletes its plan. No chat history is saved.</footer>}
   </section>;
 }

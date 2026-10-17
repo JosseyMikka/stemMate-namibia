@@ -78,7 +78,7 @@ export default function VoiceTools({onTranscript, readText, disabled = false, al
   }
   return <details className="voice-tools" onToggle={event => {if (!event.currentTarget.open) stop();}}><summary>Voice input and spoken prompts</summary>
     <p>Voice is optional. STEMMate does not record or store audio. Your browser may send your voice to its speech service for transcription. Ask a teacher or guardian before enabling the microphone. Keep personal information out of your speech.</p>
-    {!allowDictation && <p>Your teacher has disabled voice dictation for this class. Typing and local spoken prompts remain available.</p>}
+    {!allowDictation && <p>Voice dictation is off for this activity. Typing and local spoken prompts remain available.</p>}
     {supported && allowDictation ? <label className="check"><input type="checkbox" checked={allowed} disabled={disabled || listening} onChange={e => {stop(); setAllowed(e.target.checked);}} /> I understand how voice input works and want to enable it.</label>
       : !supported ? <p>This browser does not support voice input. You can type, or use your device’s keyboard dictation.</p> : null}
     <button type="button" className="secondary" disabled={disabled || !allowDictation || !supported || !allowed || listening} onClick={dictate}>Speak my response</button>
