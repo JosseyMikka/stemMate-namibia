@@ -20,7 +20,7 @@ from typing import Literal
 from starlette.concurrency import run_in_threadpool
 from modules.learning import LearningStore, visible, advance
 from modules.tutor import make_plan, direct_explanation
-from modules import accounts, projects, attached_work, quiz, release_config
+from modules import accounts, projects, attached_work, quiz, release_config, teacher_planning
 from modules.curricula import catalogue, starter_plan, course_for
 
 store = LearningStore()
@@ -399,3 +399,19 @@ def delete_quiz(x_learning_token:str=Header(default=''),user=Depends(accounts.cu
         if s and s.owner_id!=user['id']:raise HTTPException(403,'This quiz belongs to another account.')
         quizzes.sessions.pop(x_learning_token,None)
     return {'deleted':True}
+
+
+@app.post('/teacher/preparation')
+async def prepare_teaching(value:teacher_planning.Preparation,user=Depends(accounts.current_user)):
+    classroom=accounts.class_access(value.class_id,user,True)
+    if not value.consent:
+        raise HTTPException(400,'Confirm AI processing permission before generating a draft.')
+    if value.mode in ('adapt','questions') and not value.content.strip():
+        raise HTTPException(400,'Provide the activity or lesson content first.')
+    reserve_ai(user['id'])
+    try:
+        result=await run_in_threadpool(teacher_planning.generate,value,classroom)
+    except Exception:
+        raise HTTPException(503,'Preparation is unavailable. Your writing is still on this page; try again later.')
+    accounts.class_access(value.class_id,user,True)
+    return result

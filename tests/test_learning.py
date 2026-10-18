@@ -788,4 +788,53 @@ class ClassroomTests(unittest.TestCase):
         for action in ['hint','direct','example']:self.assertEqual(self.action(action).status_code,409)
         self.assertNotIn('explanation',current);self.assertEqual(current['hints'],[])
 
+    def preparation(self, **changes):
+        return {'class_id':self.room['id'],'mode':'lesson','topic':'Equations','objective':'Explain inverse operations','content':'Solve 2x + 3 = 11 and explain each step.','resources':'Board only','minutes':40,'consent':True,**changes}
+
+    def test_preparation_teacher_ownership_and_validation(self):
+        value=self.preparation()
+        with patch.object(main.teacher_planning,'generate') as generate:
+            self.assertEqual(self.client.post('/teacher/preparation',json=value).status_code,401)
+            self.assertEqual(self.client.post('/teacher/preparation',headers=self.learner,json=value).status_code,403)
+            other=self.register('other_teacher','teacher')
+            self.assertEqual(self.client.post('/teacher/preparation',headers=other,json=value).status_code,403)
+            for changes,status in [({'consent':False},400),({'mode':'adapt','content':'  '},400),({'mode':'questions','content':''},400),({'objective':'  '},422),({'topic':'  '},422),({'minutes':0},422),({'mode':'unknown'},422),({'extra':'PRIVATE_VALUE'},422)]:
+                response=self.client.post('/teacher/preparation',headers=self.teacher,json=self.preparation(**changes))
+                self.assertEqual(response.status_code,status,response.text)
+                self.assertNotIn('PRIVATE_VALUE',response.text)
+            generate.assert_not_called()
+
+    def test_preparation_modes_are_transient_and_available_when_paused(self):
+        self.policy(paused=True)
+        for mode in ('lesson','adapt','questions'):
+            with patch.object(main.teacher_planning,'generate',return_value={'learner_draft':'PRIVATE_HANDOUT','teacher_guide':'PRIVATE_GUIDE','review_notes':'Check this.'}) as generate:
+                response=self.client.post('/teacher/preparation',headers=self.teacher,json=self.preparation(mode=mode))
+                self.assertEqual(response.status_code,200,response.text)
+                self.assertEqual(response.json()['teacher_guide'],'PRIVATE_GUIDE')
+                self.assertEqual(response.headers['cache-control'],'no-store')
+                self.assertEqual(generate.call_args.args[1]['course']['id'],'na-nssco')
+        self.assertEqual(len(main.store.sessions),0)
+        self.assertEqual(len(main.quizzes.sessions),0)
+        with accounts.db() as db:
+            tables=[row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type='table'")]
+            for table in tables:
+                self.assertNotIn('PRIVATE_HANDOUT',repr(db.execute('SELECT * FROM "'+table+'"').fetchall()))
+
+    def test_preparation_failure_and_budget(self):
+        with patch.object(main.teacher_planning,'generate',side_effect=RuntimeError('PRIVATE_PROVIDER_PAYLOAD')):
+            response=self.client.post('/teacher/preparation',headers=self.teacher,json=self.preparation())
+            self.assertEqual(response.status_code,503)
+            self.assertNotIn('PRIVATE_PROVIDER_PAYLOAD',response.text)
+        with patch.dict(os.environ,{'STEMMATE_AI_USER_HOURLY_LIMIT':'1'}),patch.object(main.teacher_planning,'generate') as generate:
+            self.assertEqual(self.client.post('/teacher/preparation',headers=self.teacher,json=self.preparation()).status_code,429)
+            generate.assert_not_called()
+
+    def test_preparation_rechecks_access_after_generation(self):
+        from fastapi import HTTPException
+        classroom=accounts.class_access(self.room['id'],{'id':1,'role':'teacher'},True)
+        with patch.object(main.accounts,'class_access',side_effect=[classroom,HTTPException(403,'Access changed')]),patch.object(main.teacher_planning,'generate',return_value={'learner_draft':'PRIVATE_HANDOUT','teacher_guide':'PRIVATE_GUIDE','review_notes':'Check this.'}):
+            response=self.client.post('/teacher/preparation',headers=self.teacher,json=self.preparation())
+            self.assertEqual(response.status_code,403)
+            self.assertNotIn('PRIVATE_GUIDE',response.text)
+
 if __name__=='__main__':unittest.main()

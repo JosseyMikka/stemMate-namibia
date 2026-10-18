@@ -1,6 +1,7 @@
 import {useCallback, useEffect, useRef, useState} from 'react';
 import {request, type User, type Course, type Classroom} from '../api/stemmateApi';
 import TeacherControls from './TeacherControls';
+import TeacherPreparation from './TeacherPreparation';
 import Chat from './Chat';
 import DraftRecovery,{DraftPrivacy} from './DraftRecovery';
 import ProjectPathway from './ProjectPathway';
@@ -85,7 +86,7 @@ export default function ClassroomHub({user,onSignOut}: {user:User;onSignOut:()=>
         <p className="privacy">{classroom.course.safety_notice}</p>
         <p className="privacy">{classroom.course.coverage_notice} The catalogue identifies a syllabus; it does not certify full coverage.</p>
         <p><a href={classroom.course.source} target="_blank" rel="noreferrer">Open the official syllabus source (new tab)</a></p></details>
-        {user.role==='teacher'&&<><TeacherControls key={classroom.id} classroom={classroom} onUpdate={updated=>setClasses(items=>items.map(c=>c.id===updated.id?updated:c))} /></>}
+        {user.role==='teacher'&&<><TeacherPreparation classroom={classroom} active={view==='tools'&&!solo}/><TeacherControls key={classroom.id} classroom={classroom} onUpdate={updated=>setClasses(items=>items.map(c=>c.id===updated.id?updated:c))} /></>}
         <details className="space-settings"><summary>Class options</summary><button className="text-button" disabled={busy} onClick={()=>void perform(async()=>{await refresh();setMessage('Class list refreshed.');})}>Refresh classes</button>
         {user.role==='learner'&&<button className="text-button" disabled={busy} onClick={()=>void perform(async()=>{await request(`/classes/${classroom.id}/members/${user.id}`,'DELETE');setActive(null);await refresh();setMessage('You left the class. Your teacher can invite you again.');})}>Leave this class</button>}</details>
         <ProjectPathway key={classroom.id} classroom={classroom} user={user} active={view==='tools'&&!solo}/>

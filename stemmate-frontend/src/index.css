@@ -233,3 +233,5 @@ header > div, .class-card strong, .class-card span {min-width:0;max-width:100%;o
 
 /* Recovered notes remain unavailable during the active independent check. */
 .companion-shell:has(.chat-workspace[data-independent-check="true"]) .draft-recovery{display:none}
+
+.teacher-preparation textarea{font-size:16px;min-height:110px;max-width:100%;white-space:pre-wrap}.teacher-preparation .preparation-output{min-height:280px}.teacher-preparation{min-width:0;overflow-wrap:anywhere}

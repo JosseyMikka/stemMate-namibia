@@ -238,3 +238,7 @@ Relevant chat explanations now offer a small **Explore this visually** button fo
 ## Optional unfinished chat recovery
 
 Recovery is off by default. Device privacy offers a tab-only, 30-minute recovery copy for unfinished main-chat text. Refresh still requires sign-in; the same account can review/copy saved text. Sign-out/clear removes this tab’s copies even offline. Browser copies are unencrypted: leave recovery off on shared devices. This does not resume a lesson, save tokens or persist quizzes/uploads/project notebooks. See [privacy limits and verification](docs/DRAFT-RECOVERY.md).
+
+## Teacher preparation
+
+In Teacher tools, choose a class and open **Prepare teaching materials** for lesson outlines, activity adaptations or five practice questions. Drafts are editable and temporary; answer guides stay separate. Explicit provider permission and teacher review are required. Nothing is automatically assigned. See [scope, privacy and verification](docs/TEACHER-PREPARATION.md).
