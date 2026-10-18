@@ -837,4 +837,36 @@ class ClassroomTests(unittest.TestCase):
             self.assertEqual(response.status_code,403)
             self.assertNotIn('PRIVATE_GUIDE',response.text)
 
+    def test_preparation_without_classes_all_modes(self):
+        teacher=self.register('standalone_planner','teacher')
+        self.assertEqual(self.client.get('/classes',headers=teacher).json(),[])
+        result={'learner_draft':'Think first.','teacher_guide':'Teacher notes.','review_notes':'Review needed.'}
+        contexts=[('lesson','na-nssco',10),('adapt','na-nsscas-computing',12),('questions','cam-a-biology',12)]
+        with patch.object(main.accounts,'class_access',side_effect=AssertionError('No class lookup expected')):
+            for mode,course_id,grade in contexts:
+                value=self.preparation(mode=mode,class_id=0,course_id=course_id,grade=grade,exam_year=2027)
+                with patch.object(main.teacher_planning,'generate',return_value=result) as generate:
+                    response=self.client.post('/teacher/preparation',headers=teacher,json=value)
+                    self.assertEqual(response.status_code,200,response.text)
+                    self.assertEqual(generate.call_args.args[1]['course']['id'],course_id)
+                    self.assertEqual(generate.call_args.args[1]['grade'],grade)
+        self.assertEqual(self.client.get('/classes',headers=teacher).json(),[])
+
+    def test_preparation_standalone_context_and_role_validation(self):
+        base=self.preparation(class_id=0,course_id='na-nssco',grade=10,exam_year=2027)
+        with patch.object(main.teacher_planning,'generate') as generate:
+            self.assertEqual(self.client.post('/teacher/preparation',headers=self.learner,json=base).status_code,403)
+            for change in ({'course_id':'unknown'},{'course_id':'na-nsscas'},{'grade':9},{'exam_year':2028}):
+                response=self.client.post('/teacher/preparation',headers=self.teacher,json={**base,**change})
+                self.assertEqual(response.status_code,422,response.text)
+            generate.assert_not_called()
+
+    def test_preparation_legacy_class_context_remains_authoritative(self):
+        with patch.object(main.teacher_planning,'generate',return_value={'learner_draft':'Task','teacher_guide':'Guide','review_notes':'Review'}) as generate:
+            response=self.client.post('/teacher/preparation',headers=self.teacher,json=self.preparation(course_id='cam-a-biology',grade=12))
+            self.assertEqual(response.status_code,200,response.text)
+            context=generate.call_args.args[1]
+            self.assertEqual(context['course']['id'],'na-nssco')
+            self.assertEqual(context['grade'],10)
+
 if __name__=='__main__':unittest.main()

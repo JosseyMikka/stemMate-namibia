@@ -403,7 +403,11 @@ def delete_quiz(x_learning_token:str=Header(default=''),user=Depends(accounts.cu
 
 @app.post('/teacher/preparation')
 async def prepare_teaching(value:teacher_planning.Preparation,user=Depends(accounts.current_user)):
-    classroom=accounts.class_access(value.class_id,user,True)
+    if user['role']!='teacher':
+        raise HTTPException(403,'Only teachers can prepare teaching materials.')
+    classroom=accounts.class_access(value.class_id,user,True) if value.class_id else {
+        'course':course_for(value.course_id,value.grade,value.exam_year),
+        'grade':value.grade,'exam_year':value.exam_year}
     if not value.consent:
         raise HTTPException(400,'Confirm AI processing permission before generating a draft.')
     if value.mode in ('adapt','questions') and not value.content.strip():
@@ -413,5 +417,6 @@ async def prepare_teaching(value:teacher_planning.Preparation,user=Depends(accou
         result=await run_in_threadpool(teacher_planning.generate,value,classroom)
     except Exception:
         raise HTTPException(503,'Preparation is unavailable. Your writing is still on this page; try again later.')
-    accounts.class_access(value.class_id,user,True)
+    if value.class_id:
+        accounts.class_access(value.class_id,user,True)
     return result

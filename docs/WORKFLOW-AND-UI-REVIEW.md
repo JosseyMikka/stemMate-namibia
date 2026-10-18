@@ -1,3 +1,5 @@
+> UPDATE: the no-class preparation recommendation below is now implemented. Teachers choose context directly; an optional class prefills it only. Classes/projects are grouped in a separate optional disclosure. Historical findings below describe the review before that follow-up; current verification is in TEACHER-PREPARATION.md.
+
 # STEMMate workflow and UI review — 18 October 2026
 
 ## Product decision

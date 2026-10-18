@@ -12,14 +12,14 @@ The main experience is a simple chat. Classes, projects and feedback are optiona
 | --- | --- | --- | --- |
 | Learner asks a STEM question or uses starter practice | Yes, learner | No | No |
 | Teacher uses Chat to explore a concept | Yes, teacher | No | No |
-| Teacher prepares a lesson, adapts an activity or creates practice questions | Yes, teacher | Currently yes, on this branch | No enrolled students needed |
+| Teacher prepares a lesson, adapts an activity or creates practice questions | Yes, teacher | No | No |
 | Shared projects, learner submissions and teacher feedback | Yes, appropriate role | Yes | Learners join using a class code |
 
 **No class is required for ordinary Chat. No anonymous/guest mode is currently implemented.** Accounts use an alias and password rather than a personal email. Teacher registration requires the operator's private invitation; that invitation alone does not verify professional identity.
 
 Teachers create classes only when they need a shared space. They choose subject, grade, qualification and examination year, then share a rotatable invitation code. Learners create their own accounts and join with that code; teachers do not need to enter student personal records. One teacher can own multiple classes across subjects and grades. Co-teaching is not implemented.
 
-**Known setup friction:** teacher preparation currently sits inside a selected class, although no learners need to be enrolled. A no-class teacher preparation assistant is the recommended next simplification; it has not yet been implemented. Do not create dummy learner records to use the tools.
+Teacher preparation is available without classes. Select subject, grade, qualification and examination year directly, or optionally prefill those choices from a class. Prefilling does not connect, assign or share the draft. No dummy classes or learner records are needed.
 
 ## Learner journey
 
@@ -44,9 +44,9 @@ Guided-chat attempts stay on the device; that API receives an attempt acknowledg
 
 Teachers can use **Chat** immediately without creating a class or enrolling students.
 
-For connected teaching, open **Teacher tools**, add or select a class, and use:
+Open **Teacher tools** for preparation immediately. Expand **Classes, projects and feedback (optional)** only when you want a connected class:
 
-- **Prepare teaching materials:** Plan a lesson, Adapt an activity or Create practice questions. Supply the objective and relevant content; review/edit drafts, assumptions and the separate teacher answer guide. Nothing is automatically assigned. These tools are in the current review branch/PR 2.
+- **Prepare teaching materials:** Plan a lesson, Adapt an activity or Create practice questions. Choose teaching context directly or prefill it from a class, then supply the objective and relevant content; review/edit drafts, assumptions and the separate teacher answer guide. Nothing is automatically assigned. These tools are in the current review branch/PR 2.
 - **Projects and feedback:** set a brief, criteria and checkpoints; learners make/test/revise an artifact and optionally submit a snapshot. Teachers assess shared work and provide feedback.
 - **Class controls:** configure hints, pause learner practice and manage optional reporting/sharing.
 
@@ -68,7 +68,7 @@ AI drafts can contain incorrect science, worked hints in learner materials, weak
 
 The catalogue covers selected 2026/2027 pathways, not complete verified syllabuses. There are 14 authored starter topics; custom AI questions are general support requiring review. Practical assessments and school teaching remain outside the app's coverage claims.
 
-Current teacher-tools branch verification: 70 backend tests, ten frontend suites, build/typecheck/lint and GitHub checks pass. These checks do not establish learning efficacy, factual accuracy or production readiness. Teacher preparation is under review in [PR 2](https://github.com/JosseyMikka/stemMate-namibia/pull/2); the earlier learner redesign was merged in PR 1. No public deployment has been performed.
+Current teacher-tools branch verification: 73 backend tests, ten frontend suites, build/typecheck/lint and GitHub checks pass. These checks do not establish learning efficacy, factual accuracy or production readiness. Teacher preparation is under review in [PR 2](https://github.com/JosseyMikka/stemMate-namibia/pull/2); the earlier learner redesign was merged in PR 1. No public deployment has been performed.
 
 Historical database/index paths were removed from this fork's branches with an approved history rewrite. Copies in upstream repositories, caches, clones and backups remain a separate remediation issue. Do not push from old history-bearing clones.
 

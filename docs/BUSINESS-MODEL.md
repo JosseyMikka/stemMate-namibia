@@ -13,7 +13,7 @@ Proposed initial buyer: a school, tutoring organisation, NGO or education sponso
 | School/organisation subscription | Teacher access and an agreed pool of learner/AI usage, support and reviewed resources as those are actually delivered | Do not advertise complete curriculum coverage, enterprise SSO or SLAs that do not exist |
 | Onboarding/training | Setup help, teacher workshops and responsible classroom-use support | Charge separately for actual services; do not present this as research consent |
 | Sponsored learner access | NGOs/businesses fund access for a defined group | No learner-identifying reports to sponsors; sponsorship is not consent for research/data disclosure |
-| Optional individual teacher plan | Personal planning and bounded AI usage without class setup, once implemented | Validate demand first; this no-class preparation flow is not yet implemented |
+| Optional individual teacher plan | Personal planning and bounded AI usage without class setup | Validate demand first; no-class preparation is implemented, but paid plans are not |
 
 Maintain a useful basic learner route and essential reasoning/accessibility support. Avoid advertising to minors, sales of learner data, punitive streaks and pressure to pay to finish an independent check. Do not rely on a provider's free tier for long-term affordability.
 

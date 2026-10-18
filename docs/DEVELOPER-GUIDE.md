@@ -1,3 +1,5 @@
+> UPDATE: teacher preparation now works without classes; optionally prefill subject/grade/qualification/year from an owned class. Class/project workflows remain optional. Consult TEACHER-PREPARATION.md for current behavior.
+
 > Detailed implementation reference retained from the development README. Product workflows and status are summarised in the repository README. Some sections describe earlier design stages; consult the linked feature documents for current limits.
 
 > Before real learner use: read the [release/privacy gate and administrator runbook](RELEASE-AND-PRIVACY.md). Current-tree data removal does not erase historical Git copies.

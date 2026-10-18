@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useRef, useState} from 'react';
+import {useCallback, useEffect, useRef, useState,type ReactNode} from 'react';
 import {request, type User, type Course, type Classroom} from '../api/stemmateApi';
 import TeacherControls from './TeacherControls';
 import TeacherPreparation from './TeacherPreparation';
@@ -7,6 +7,7 @@ import DraftRecovery,{DraftPrivacy} from './DraftRecovery';
 import ProjectPathway from './ProjectPathway';
 import IndependentPractice from './IndependentPractice';
 import StoredWorkPrivacy from './StoredWorkPrivacy';
+function ClassSpaces({teacher,children}:{teacher:boolean;children:ReactNode}){return teacher?<details className="card"><summary>Classes, projects and feedback (optional)</summary>{children}</details>:<>{children}</>;}
 export default function ClassroomHub({user,onSignOut}: {user:User;onSignOut:()=>void}) {
   const [classes,setClasses]=useState<Classroom[]>([]);
   const [courses,setCourses]=useState<Course[]>([]);
@@ -56,7 +57,9 @@ export default function ClassroomHub({user,onSignOut}: {user:User;onSignOut:()=>
         <div hidden={!solo}><IndependentPractice courses={courses} user={user} active={view==='chat'&&solo}/></div>{classroom&&<div hidden={solo}><p className="chat-context">Class activity · {classroom.name}</p><Chat key={classroom.id} classroom={classroom} user={user} active={view==='chat'&&!solo}/></div>}
         {!solo&&<button className="text-button" onClick={()=>setSolo(true)}>Practise independently instead</button>}
       </div>
-      <div hidden={view!=='tools'}><h1>{user.role==='teacher'?'Teacher tools':'Classes, projects and feedback'}</h1><p>Keep class activities and feedback here. Return to Chat to work through a question. Save notebooks before changing class or refreshing.</p>
+      <div hidden={view!=='tools'}><h1>{user.role==='teacher'?'Teacher tools':'Classes, projects and feedback'}</h1><p>{user.role==='teacher'?'Prepare materials without a class. Optional class spaces below support projects and feedback. Return to Chat to explore a STEM question.':'Keep class activities and feedback here. Return to Chat to work through a question. Save notebooks before changing class or refreshing.'}</p>
+      {user.role==='teacher'&&<TeacherPreparation courses={courses} classes={classes} active={view==='tools'}/>}
+      <ClassSpaces teacher={user.role==='teacher'}>
       {loading?<p role="status">Loading your classes…</p>:<>
         <button className="secondary" onClick={()=>{setSolo(true);setView('chat');}}>Open independent chat</button>
         {!solo&&<><label htmlFor="active-class">{user.role==='teacher'?'Teaching class':'Your class'}</label><select id="active-class" value={active??''} onChange={e=>{setActive(e.target.value?Number(e.target.value):null);setSolo(false);setMessage('');}}><option value="">Choose a class</option>{classes.map(c=><option key={c.id} value={c.id}>{c.name} · Grade {c.grade} · {c.course.subject_label}</option>)}</select>
@@ -86,12 +89,13 @@ export default function ClassroomHub({user,onSignOut}: {user:User;onSignOut:()=>
         <p className="privacy">{classroom.course.safety_notice}</p>
         <p className="privacy">{classroom.course.coverage_notice} The catalogue identifies a syllabus; it does not certify full coverage.</p>
         <p><a href={classroom.course.source} target="_blank" rel="noreferrer">Open the official syllabus source (new tab)</a></p></details>
-        {user.role==='teacher'&&<><TeacherPreparation classroom={classroom} active={view==='tools'&&!solo}/><TeacherControls key={classroom.id} classroom={classroom} onUpdate={updated=>setClasses(items=>items.map(c=>c.id===updated.id?updated:c))} /></>}
+        {user.role==='teacher'&&<><TeacherControls key={classroom.id} classroom={classroom} onUpdate={updated=>setClasses(items=>items.map(c=>c.id===updated.id?updated:c))} /></>}
         <details className="space-settings"><summary>Class options</summary><button className="text-button" disabled={busy} onClick={()=>void perform(async()=>{await refresh();setMessage('Class list refreshed.');})}>Refresh classes</button>
         {user.role==='learner'&&<button className="text-button" disabled={busy} onClick={()=>void perform(async()=>{await request(`/classes/${classroom.id}/members/${user.id}`,'DELETE');setActive(null);await refresh();setMessage('You left the class. Your teacher can invite you again.');})}>Leave this class</button>}</details>
         <ProjectPathway key={classroom.id} classroom={classroom} user={user} active={view==='tools'&&!solo}/>
 
       </section>}
+      </ClassSpaces>
       </div>
     </main></div>;
 }
