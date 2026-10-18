@@ -1,8 +1,9 @@
 """Retrieval stays local; only relevant curriculum excerpts go to the AI provider."""
 import json
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 class LessonPlan(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True, extra='forbid')
     challenge: str = Field(min_length=1, max_length=3000)
     hints: list[str] = Field(min_length=3, max_length=3)
     explanation: str = Field(min_length=1, max_length=5000)
@@ -26,6 +27,10 @@ biology neutrally and age-appropriately. Computing: trace educational pseudocode
 never execute commands or code; no credential collection, malware, exploitation or
 access to other people's systems. Redirect unsafe requests to safe paper analysis. Use plain English and safe everyday examples.
 Use $...$ for inline math and $$...$$ for display math, with valid LaTeX.
+If a question is ambiguous or missing required data, ask one short clarifying
+question or identify what is missing; never invent values or assumptions. Any
+new practice problem you create must be self-contained and explicitly labelled
+as a new example, not presented as the learner's original question.
 '''
 
 
@@ -77,8 +82,10 @@ explanation when the curriculum excerpts do not support curriculum claims.''', c
     plan = LessonPlan.model_validate_json(raw).model_dump()
     if any(not h.strip() or len(h) > 1500 for h in plan['hints']):
         raise ValueError('Invalid hints')
-    if plan['application'] == plan['independent']:
-        raise ValueError('Transfer checks must differ')
+    questions = [' '.join(plan[key].casefold().split())
+                 for key in ('challenge', 'application', 'independent')]
+    if len(set(questions)) != 3:
+        raise ValueError('Challenge, application and transfer checks must differ')
     return plan
 
 

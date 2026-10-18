@@ -2,6 +2,7 @@ import {lazy,Suspense,useEffect,useId,useRef,useState} from 'react';
 import {request,type Lesson,type Classroom,type User} from '../api/stemmateApi';
 import {needsClarification,nextPrompt,replyLabel,withClarification,quizRequest,hintGuidance,showChallenge} from './chatGuidance';
 import {DraftPrivacy} from './DraftRecovery';
+import DisplayBoundary from './DisplayBoundary';
 import {readDrafts,saveDraft} from './tabDrafts';
 import VoiceTools from './VoiceTools';
 import SubjectBadge from './SubjectBadge';
@@ -11,7 +12,7 @@ const QuizPractice=lazy(()=>import('./QuizPractice'));
 const AttachedWork=lazy(()=>import('./AttachWork'));
 const VisualExplorer=lazy(()=>import('./ExploreVisually'));
 const MathContent=lazy(()=>import('./MessageContent'));
-function Message({content}:{content:string}){return <Suspense fallback={<p role="status">Loading…</p>}><MathContent content={content}/></Suspense>;}
+function Message({content}:{content:string}){return <DisplayBoundary fallback={<><p role="status">Formatted display could not load. Plain text is shown below; your writing is still available. Copy important work before refreshing to try again.</p><p className="learner-text">{content}</p></>}><Suspense fallback={<p role="status">Loading…</p>}><MathContent content={content}/></Suspense></DisplayBoundary>;}
 const labels:Record<string,string>={attempt:'Let’s try together',explain:'Tell me your thinking',feedback:'Let’s compare ideas',apply:'Use your idea again',independent:'Your turn, on your own',complete:'Reflect on your thinking'};
 export default function Chat({classroom,user,independent=false,active=true}:{classroom:Classroom;user:User;independent?:boolean;active?:boolean}){
  const id=useId(),pending=useRef(false),heading=useRef<HTMLHeadingElement>(null),input=useRef<HTMLTextAreaElement>(null),errorRef=useRef<HTMLParagraphElement>(null);
@@ -71,11 +72,11 @@ export default function Chat({classroom,user,independent=false,active=true}:{cla
   requestAnimationFrame(()=>{panel.current?.focus();panel.current?.scrollIntoView({block:'start'});});
  }
  function hint(){if(lesson?.stage==='explain'){act('hint');return;}setMode('guided');setNotice(lesson?'Share a first idea below—even “I’m stuck”. Then I can offer a small hint.':'Send a question first. We’ll start with your idea and take it one hint at a time.');focusReply();}
- return <>{quizOpen&&<Suspense fallback={<p role="status">Opening quiz practice…</p>}><QuizPractice classroom={classroom} topicId={topicId} band={band} initialTopic={quizTopic} learningToken={token} active={active} onClose={()=>{setQuizOpen(false);focusReply();}}/></Suspense>}<section hidden={quizOpen} data-independent-check={active&&independentCheck?'true':undefined} className="chat-workspace" style={subjectStyle(classroom.course.subject)} aria-label="STEM thinking chat">
+ return <>{quizOpen&&<DisplayBoundary fallback={<div role="alert"><p>Quiz practice could not load. Copy important work before refreshing to try again.</p><button onClick={()=>setQuizOpen(false)}>Back to chat</button></div>}><Suspense fallback={<p role="status">Opening quiz practice…</p>}><QuizPractice classroom={classroom} topicId={topicId} band={band} initialTopic={quizTopic} learningToken={token} active={active} onClose={()=>{setQuizOpen(false);focusReply();}}/></Suspense></DisplayBoundary>}<section hidden={quizOpen} data-independent-check={active&&independentCheck?'true':undefined} className="chat-workspace" style={subjectStyle(classroom.course.subject)} aria-label="STEM thinking chat">
  <div className="chat-topbar"><div><span className="eyebrow">{!independent&&<><SubjectBadge subject={classroom.course.subject}/><br/></>}{independent?'Independent practice':classroom.name}</span><h2 ref={heading} tabIndex={-1}>{lesson?labels[lesson.stage]:mode==='direct'?'Let’s explain it simply':'Let’s think it through'}</h2></div>{(started||clarifying)&&<button className="secondary" disabled={busy} onClick={reset}>New chat</button>}</div>
  {!independentCheck&&(attachVisited||visualVisited)&&<div ref={panel} tabIndex={-1}>
- {attachVisited&&<div hidden={!attachOpen}><Suspense fallback={<p role="status">Opening your work…</p>}><AttachedWork key={revision} classId={classroom.id} learningToken={token} disabled={blocked||!attachOpen} onClose={()=>{setAttachOpen(false);if(more.current)more.current.open=true;attachButton.current?.focus();}}/></Suspense></div>}
- {visualVisited&&<div hidden={!visualOpen} className="visual-container"><Suspense fallback={<p role="status">Opening visual activities…</p>}><VisualExplorer key={revision} selection={visualSelection} onSelect={setVisualSelection} paused={classroom.paused} active={active&&!quizOpen&&visualOpen} onClose={()=>{setVisualOpen(false);if(visualTrigger.current?.isConnected)visualTrigger.current.focus();else more.current?.querySelector('summary')?.focus();}}/></Suspense></div>}
+ {attachVisited&&<div hidden={!attachOpen}><DisplayBoundary fallback={<p role="alert">Attach work could not load. Your chat writing is still available. Copy important work before refreshing to try again.</p>}><Suspense fallback={<p role="status">Opening your work…</p>}><AttachedWork key={revision} classId={classroom.id} learningToken={token} disabled={blocked||!attachOpen} onClose={()=>{setAttachOpen(false);if(more.current)more.current.open=true;attachButton.current?.focus();}}/></Suspense></DisplayBoundary></div>}
+ {visualVisited&&<div hidden={!visualOpen} className="visual-container"><DisplayBoundary fallback={<p role="alert">Visual activities could not load. Your chat writing is still available. Copy important work before refreshing to try again.</p>}><Suspense fallback={<p role="status">Opening visual activities…</p>}><VisualExplorer key={revision} selection={visualSelection} onSelect={setVisualSelection} paused={classroom.paused} active={active&&!quizOpen&&visualOpen} onClose={()=>{setVisualOpen(false);if(visualTrigger.current?.isConnected)visualTrigger.current.focus();else more.current?.querySelector('summary')?.focus();}}/></Suspense></DisplayBoundary></div>}
  </div>}
  <div className="chat-conversation" aria-label="Conversation">
  {!started&&!clarifying&&<div className="chat-welcome"><span className="chat-emblem" aria-hidden="true">SM</span><h3>What would you like help with?</h3><p>A question, a first idea, or “I’m stuck” is enough.</p>

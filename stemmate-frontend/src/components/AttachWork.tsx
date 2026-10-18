@@ -1,6 +1,7 @@
 import {lazy,Suspense,useId,useState} from 'react';
 import {request} from '../api/stemmateApi';
 import MessageContent from './MessageContent';
+import DisplayBoundary from './DisplayBoundary';
 const PdfPagePicker=lazy(()=>import('./PdfPagePicker'));
 export default function AttachWork({classId,learningToken,disabled,onClose}:{classId:number;learningToken:string;disabled:boolean;onClose:()=>void}){
  const id=useId();
@@ -22,7 +23,7 @@ export default function AttachWork({classId,learningToken,disabled,onClose}:{cla
  {inputKind!=='type'&&<><label htmlFor={`${id}-target`}>Put the next transcription in</label><select id={`${id}-target`} value={target} disabled={blocked} onChange={e=>setTarget(e.target.value)}><option value="work">My handwritten answer</option><option value="question">Question from a paper</option><option value="scheme">Supplied marking criteria</option></select><p>Reading a page replaces the chosen field. Check it before confirming. You can attach the question first, then your answer.</p></>}
  <div hidden={inputKind!=='photo'}><label htmlFor={`${id}-image`}>Photograph of work (PNG or JPEG, maximum 2 MB and 12 million pixels)</label>
  <input key={fileKey} id={`${id}-image`} type="file" accept="image/png,image/jpeg" disabled={blocked||!consent} onChange={e=>{const file=e.target.files?.[0];if(!file)return;void perform(async()=>{if(!['image/png','image/jpeg'].includes(file.type)||file.size>2000000)throw new Error('Choose a PNG or JPEG smaller than 2 MB.');const encoded=await new Promise<string>((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(',')[1]);reader.onerror=()=>reject(new Error('Could not read this image.'));reader.readAsDataURL(file);});await readImage(encoded);});}}/></div>
- {pdfVisited&&<div hidden={inputKind!=='pdf'}><Suspense fallback={<p role="status">Loading PDF support…</p>}><PdfPagePicker key={fileKey} disabled={busy||disabled} consent={consent} onRead={readImage} onBusy={setPdfBusy}/></Suspense></div>}
+ {pdfVisited&&<div hidden={inputKind!=='pdf'}><DisplayBoundary fallback={<p role="alert">The PDF reader could not load. Your typed work is still here. Choose typed text or a photo, or copy important work before refreshing.</p>}><Suspense fallback={<p role="status">Loading PDF support…</p>}><PdfPagePicker key={fileKey} disabled={busy||disabled} consent={consent} onRead={readImage} onBusy={setPdfBusy}/></Suspense></DisplayBoundary></div>}
  {hasText&&<><p>Is this what you meant? Correct any misread symbols before continuing.</p>
  <label htmlFor={`${id}-question`}>Question</label><textarea id={`${id}-question`} maxLength={4000} value={question} disabled={blocked} onChange={e=>{setQuestion(e.target.value);setConfirmed(false);setFeedback('');}}/>
  <label htmlFor={`${id}-work`}>Your work / editable transcription</label><textarea id={`${id}-work`} maxLength={8000} value={work} disabled={blocked} onChange={e=>{setWork(e.target.value);setConfirmed(false);setFeedback('');}}/>
