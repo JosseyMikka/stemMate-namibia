@@ -408,6 +408,10 @@ async def prepare_teaching(value:teacher_planning.Preparation,user=Depends(accou
     classroom=accounts.class_access(value.class_id,user,True) if value.class_id else {
         'course':course_for(value.course_id,value.grade,value.exam_year),
         'grade':value.grade,'exam_year':value.exam_year}
+    try:
+        teacher_planning.visual_for(classroom['course']['subject'],value.visual_id)
+    except ValueError:
+        raise HTTPException(422,'Choose an available visual companion for the selected subject.')
     if not value.consent:
         raise HTTPException(400,'Confirm AI processing permission before generating a draft.')
     if value.mode in ('adapt','questions') and not value.content.strip():
@@ -424,3 +428,23 @@ async def prepare_teaching(value:teacher_planning.Preparation,user=Depends(accou
     if value.class_id:
         accounts.class_access(value.class_id,user,True)
     return result
+
+
+@app.post('/teacher/materials/transcribe')
+async def transcribe_teaching_material(value:teacher_planning.MaterialImage,user=Depends(accounts.current_user)):
+    if user['role']!='teacher':
+        raise HTTPException(403,'Only teachers can read teaching materials here.')
+    if not value.consent:
+        raise HTTPException(400,'Confirm permission before sending teaching materials to the AI provider.')
+    reserve_ai(user['id'])
+    try:
+        text=await run_in_threadpool(attached_work.transcribe,value.image,True)
+    except ValueError:
+        raise HTTPException(400,'Use a valid PNG or JPEG smaller than 2 MB and 12 million pixels.')
+    except Exception as error:
+        if getattr(error,'status_code',None)==429:
+            raise HTTPException(429,'The AI provider request allowance has been reached. Your lesson notes have not changed. Type the relevant content or try after the allowance resets.')
+        raise HTTPException(503,'Image reading is unavailable. Type the relevant content instead; your lesson notes have not changed.')
+    if not text.strip() or len(text)>6000:
+        raise HTTPException(422,'This page is empty or too long for lesson notes. Use a cropped image or type the relevant section.')
+    return {'transcription':text}

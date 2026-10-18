@@ -10,3 +10,10 @@ export async function prepareTeachingDraft<T>(body:unknown,timeoutMs=100000):Pro
   throw error;
  }finally{clearTimeout(timer);}
 }
+
+export async function readTeachingMaterial<T>(image:string,consent:boolean,timeoutMs=55000):Promise<T>{
+ const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),timeoutMs);
+ try{return await request<T>('/teacher/materials/transcribe','POST',{image,consent},undefined,undefined,controller.signal);}
+ catch(error){if(controller.signal.aborted)throw new Error('Reading took too long. Your lesson notes have not changed. Try again or type the relevant text.',{cause:error});throw error;}
+ finally{clearTimeout(timer);}
+}

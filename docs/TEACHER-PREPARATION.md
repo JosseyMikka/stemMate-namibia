@@ -48,3 +48,8 @@ Guidance: [W3C content on hover/focus](https://www.w3.org/WAI/WCAG22/Understandi
 
 
 Release review, 18 October 2026: requests now have a 100-second browser deadline without automatic retries; timeout preserves inputs and the prior draft. A required model context-status field rejects detected subject/objective mismatches with a clarification response. Missing/invalid status is rejected. This model check is not a guarantee of semantic correctness, curriculum alignment or teacher review.
+
+
+## Materials and visual companions
+
+Teacher preparation now supports optional image/PDF-page transcription, teacher confirmation before adding text to lesson notes, and selected existing Biology/Chemistry visual companions. See [Teacher materials](TEACHER-MATERIALS.md) for privacy, limits, verification and outstanding issues. This does not create a stored materials library or embed images in copied text.

@@ -19,6 +19,8 @@ The main experience is a simple chat. Classes, projects and feedback are optiona
 
 Teachers create classes only when they need a shared space. They choose subject, grade, qualification and examination year, then share a rotatable invitation code. Learners create their own accounts and join with that code; teachers do not need to enter student personal records. One teacher can own multiple classes across subjects and grades. Co-teaching is not implemented.
 
+Teacher preparation includes optional image/PDF-page transcription with confirmation and selected Biology/Chemistry visual companions. [Teacher materials guide](docs/TEACHER-MATERIALS.md).
+
 Teacher preparation is available without classes. Select subject, grade, qualification and examination year directly, or optionally prefill those choices from a class. Prefilling does not connect, assign or share the draft. No dummy classes or learner records are needed.
 
 ## Learner journey
@@ -76,7 +78,7 @@ The interface targets WCAG 2.2 AA with labelled inputs, keyboard access, visible
 
 The catalogue covers selected 2026/2027 pathways, not complete verified syllabuses. There are 14 authored starter topics; custom AI questions are general support requiring review. Practical assessments and school teaching remain outside the app's coverage claims.
 
-Current teacher-tools branch verification: 74 backend tests, ten frontend suites, build/typecheck/lint and GitHub checks pass. These checks do not establish learning efficacy, factual accuracy or production readiness. Teacher preparation is under review in [PR 2](https://github.com/JosseyMikka/stemMate-namibia/pull/2); the earlier learner redesign was merged in PR 1. No public deployment has been performed.
+Current teacher-tools branch verification: 81 backend tests, twelve frontend suites, build/typecheck/lint and GitHub checks pass. These checks do not establish learning efficacy, factual accuracy or production readiness. Teacher preparation is under review in [PR 2](https://github.com/JosseyMikka/stemMate-namibia/pull/2); the earlier learner redesign was merged in PR 1. No public deployment has been performed.
 
 Historical database/index paths were removed from this fork's branches with an approved history rewrite. Copies in upstream repositories, caches, clones and backups remain a separate remediation issue. Do not push from old history-bearing clones.
 

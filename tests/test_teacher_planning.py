@@ -51,3 +51,17 @@ class PlanningTests(unittest.TestCase):
         with patch.object(planning,'model_reply',side_effect=LimitError('PRIVATE_PROVIDER_PAYLOAD')):
             with self.assertRaises(planning.ProviderLimit) as result:planning.generate(value,{'grade':10,'exam_year':2027,'course':{'subject':'biology'}})
             self.assertNotIn('PRIVATE_PROVIDER_PAYLOAD',str(result.exception))
+
+    def test_visual_companion_is_bounded_and_part_of_draft(self):
+        value=planning.Preparation(mode='lesson',topic='Diffusion',objective='Explain solute diffusion',visual_id='diffusion',consent=True)
+        classroom={'grade':12,'exam_year':2027,'course':{'subject':'biology'}}
+        output={'context_status':'fits_subject','learner_draft':'Predict.','teacher_guide':'Facilitate.','review_notes':'Review.'}
+        with patch.object(planning,'model_reply',return_value=json.dumps(output)) as reply:
+            result=planning.generate(value,classroom)
+            self.assertEqual(result['visual_id'],'diffusion')
+            self.assertIn('not osmosis',result['learner_draft'])
+            self.assertIn('Open draft visual companion',result['teacher_guide'])
+            self.assertEqual(json.loads(reply.call_args.args[0])['visual_companion']['id'],'diffusion')
+        for subject in ('computing','mathematics','chemistry'):
+            with self.assertRaises(ValueError):planning.visual_for(subject,'diffusion')
+        with self.assertRaises(ValueError):planning.visual_for('biology','https://untrusted.example/image')

@@ -1,0 +1,18 @@
+import assert from 'node:assert/strict';
+import {createElement} from 'react';
+import {renderToStaticMarkup} from 'react-dom/server';
+import TeacherMaterials from './TeacherMaterials';
+import {appendConfirmedMaterial,teachingVisuals} from './teachingMaterials';
+assert.equal(appendConfirmedMaterial('Original','Confirmed notes',true),'Original\n\nConfirmed notes');
+assert.throws(()=>appendConfirmedMaterial('Original','Unconfirmed',false),/Check the transcription/);
+assert.throws(()=>appendConfirmedMaterial('Original','Symbol [unclear]',true),/replace every/);
+assert.throws(()=>appendConfirmedMaterial('x'.repeat(5999),'More notes',true),/have not changed/);
+for(const subject of ['mathematics','physics','computing'])assert.equal(teachingVisuals.filter(v=>v.subject===subject).length,0);
+assert.equal(teachingVisuals.filter(v=>v.subject==='biology').length,5);
+assert.equal(teachingVisuals.filter(v=>v.subject==='chemistry').length,2);
+const html=renderToStaticMarkup(createElement(TeacherMaterials,{disabled:false,existing:'Original',onUse:()=>{},onClose:()=>{},onBusy:()=>{}}));
+assert.match(html,/AI provider for transcription/);
+assert.match(html,/Use confirmed text in lesson notes/);
+assert.match(html,/type="file"[^>]*disabled/);
+assert.doesNotMatch(html,/<form|<iframe/);
+console.log('Teacher material confirmation, append bounds, privacy defaults and subject visual choices passed.');

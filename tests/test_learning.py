@@ -829,6 +829,31 @@ class ClassroomTests(unittest.TestCase):
             self.assertEqual(self.client.post('/teacher/preparation',headers=self.teacher,json=self.preparation()).status_code,429)
             generate.assert_not_called()
 
+    def test_teacher_materials_access_consent_limits_and_privacy(self):
+        value={'image':'fictional-test-image','consent':True}
+        with patch.object(main.attached_work,'transcribe',return_value='Visible notes') as transcribe:
+            self.assertEqual(self.client.post('/teacher/materials/transcribe',json=value).status_code,401)
+            self.assertEqual(self.client.post('/teacher/materials/transcribe',headers=self.learner,json=value).status_code,403)
+            self.assertEqual(self.client.post('/teacher/materials/transcribe',headers=self.teacher,json={**value,'consent':False}).status_code,400)
+            transcribe.assert_not_called()
+            response=self.client.post('/teacher/materials/transcribe',headers=self.teacher,json=value)
+            self.assertEqual(response.json(),{'transcription':'Visible notes'})
+            self.assertEqual(response.headers['cache-control'],'no-store')
+            transcribe.assert_called_once_with('fictional-test-image',True)
+        for text in ('','x'*6001):
+            with patch.object(main.attached_work,'transcribe',return_value=text):
+                self.assertEqual(self.client.post('/teacher/materials/transcribe',headers=self.teacher,json=value).status_code,422)
+        with patch.object(main.attached_work,'transcribe',side_effect=RuntimeError('PRIVATE_IMAGE_TEXT')):
+            response=self.client.post('/teacher/materials/transcribe',headers=self.teacher,json=value)
+            self.assertEqual(response.status_code,503)
+            self.assertNotIn('PRIVATE_IMAGE_TEXT',response.text)
+
+    def test_preparation_rejects_cross_subject_visual_before_provider(self):
+        with patch.object(main.teacher_planning,'generate') as generate:
+            response=self.client.post('/teacher/preparation',headers=self.teacher,json=self.preparation(visual_id='cell'))
+            self.assertEqual(response.status_code,422)
+            generate.assert_not_called()
+
     def test_preparation_provider_limit_is_actionable_and_private(self):
         with patch.object(main.teacher_planning,'generate',side_effect=main.teacher_planning.ProviderLimit('PRIVATE_PROVIDER_TEXT')):
             response=self.client.post('/teacher/preparation',headers=self.teacher,json=self.preparation())
