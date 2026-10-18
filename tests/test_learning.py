@@ -59,6 +59,41 @@ class ClassroomTests(unittest.TestCase):
         data={'max_hints':3,'paused':False,'evaluation_enabled':False,'voice_input_enabled':True,**changes}
         return self.client.put(f"/classes/{(room or self.room)['id']}/policy",headers=teacher or self.teacher,json=data)
 
+    def test_private_attachment_guards_and_no_storage(self):
+        from modules import attached_work
+        payload={'question':'Solve 2x+3=9','work':'2x=12, x=6','consent':True,'confirmed':True}
+        with patch.object(attached_work,'feedback',return_value='Check your subtraction.') as model:
+            self.assertEqual(self.client.post('/work/feedback',json=payload).status_code,401)
+            for changes in ({'consent':False},{'confirmed':False},{'work':'[unclear]'}, {'mode':'scheme'}):
+                self.assertEqual(self.client.post('/work/feedback',headers=self.learner,json={**payload,**changes}).status_code,400)
+            self.assertEqual(model.call_count,0)
+            r=self.client.post('/work/feedback',headers=self.learner,json=payload)
+            self.assertEqual(r.status_code,200,r.text)
+            self.assertIn('no-store',r.headers['cache-control'])
+            self.assertEqual(r.json()['feedback'],'Check your subtraction.')
+            self.start()
+            for _ in range(4): self.action()
+            r=self.client.post('/work/feedback',headers=self.headers,json={**payload,'class_id':self.room['id']})
+            self.assertEqual(r.status_code,409)
+            self.policy(paused=True)
+            r=self.client.post('/work/feedback',headers=self.learner,json={**payload,'class_id':self.room['id']})
+            self.assertEqual(r.status_code,503)
+            self.assertEqual(model.call_count,1)
+
+    def test_attachment_image_validation_and_limits(self):
+        import base64, io
+        from PIL import Image
+        from modules.attached_work import image_bytes
+        output=io.BytesIO();Image.new('RGB',(40,40),'white').save(output,'PNG')
+        clean=image_bytes(base64.b64encode(output.getvalue()).decode())
+        self.assertTrue(base64.b64decode(clean).startswith(bytes.fromhex('ffd8')))
+        with self.assertRaises(ValueError): image_bytes('not base64')
+        with self.assertRaises(ValueError): image_bytes(base64.b64encode(b'x'*2000001).decode())
+        r=self.client.post('/work/transcribe',headers=self.learner,json={'consent':False,'image':'abc'})
+        self.assertEqual(r.status_code,400)
+        r=self.client.post('/work/transcribe',headers=self.learner,content=b'x'*2850001)
+        self.assertEqual(r.status_code,413)
+
     def test_guided_stages_and_independent_freeze(self):
         first=self.start()
         self.assertNotIn('explanation',first)

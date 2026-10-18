@@ -220,3 +220,7 @@ Exam practice and past papers in Chat links to official NIED or Cambridge resour
 ### Visual reasoning
 
 Use **Explore visually** in the chat toolbar for original molecule/cell diagrams and atom-balance, membrane-diffusion and enzyme-temperature models. Simulations require a prediction, observation and learner explanation before offering a model explanation. Outputs include text/tables; notes stay local and no AI call is made. Visual help is unavailable during the independent check. These are illustrative concept models, not laboratory instructions or validated measurements. See [model assumptions, scientific references and verification](docs/VISUAL-MODELS.md).
+
+### Attach work
+
+The chat toolbar now offers **Attach work** for a PNG/JPEG photograph or typed answer. Explicit AI-processing permission precedes image submission; learners edit and confirm the transcription before feedback. Help me improve gives a guiding question, supplied-criteria mode offers provisional practice feedback, and Explain directly remains available. No attachment data is saved in the database or teacher reports. Set private `GROQ_VISION_MODEL` to an available vision model; the preview uses `qwen/qwen3.8-27b`. See [privacy, limits and testing](docs/ATTACH-WORK.md). PDF files, automatic paper search and authenticated official marking are not included.

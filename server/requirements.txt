@@ -36,3 +36,5 @@ loguru
 # File Uploads / form data (required by FastAPI's Form and File parameters)
 aiofiles
 python-multipart
+
+Pillow>=11.0,<13

@@ -1,6 +1,7 @@
 import {lazy,Suspense,useId,useRef,useState} from 'react';
 import {request,type Lesson,type Classroom,type User} from '../api/stemmateApi';
 import VoiceTools from './VoiceTools';
+const AttachedWork=lazy(()=>import('./AttachWork'));
 const VisualExplorer=lazy(()=>import('./ExploreVisually'));
 const MathContent=lazy(()=>import('./MessageContent'));
 function Message({content}:{content:string}){return <Suspense fallback={<p role="status">Loading learning material…</p>}><MathContent content={content}/></Suspense>;}
@@ -11,6 +12,8 @@ export default function Chat({classroom,user,independent=false,active=true}:{cla
  const [topic,setTopic]=useState(''),[topicId,setTopicId]=useState(classroom.course.topics[0].id),[band,setBand]=useState('secondary');
  const [mode,setMode]=useState('guided'),[token,setToken]=useState(''),[lesson,setLesson]=useState<Lesson|null>(null);
  const [work,setWork]=useState(''),[notes,setNotes]=useState<{label:string;text:string}[]>([]),[answer,setAnswer]=useState(''),[example,setExample]=useState('');
+ const [attachOpen,setAttachOpen]=useState(false);
+ const attachHeading=useRef<HTMLDivElement>(null),attachButton=useRef<HTMLButtonElement>(null);
  const [visualOpen,setVisualOpen]=useState(false),[visualRevision,setVisualRevision]=useState(0);
  const visualHeading=useRef<HTMLDivElement>(null),visualButton=useRef<HTMLButtonElement>(null);
  const [source,setSource]=useState(''),[notice,setNotice]=useState(''),[error,setError]=useState(''),[busy,setBusy]=useState(false),[consent,setConsent]=useState(false);
@@ -18,7 +21,7 @@ export default function Chat({classroom,user,independent=false,active=true}:{cla
  const context={class_id:classroom.id,course_id:classroom.course_id,grade:classroom.grade,exam_year:classroom.exam_year,topic_id:topicId,topic,band};
  function start(){void run(async()=>{if(mode==='direct'){const r=await request<{answer:string;content_source:string}>('/explain','POST',context);setAnswer(r.answer);setSource(r.content_source);}else{const r=await request<Lesson&{token:string}>('/learning','POST',{...context,consent:user.role==='learner'&&consent});setLesson(r);setToken(r.token);setSource(r.content_source??'original_starter');}});}
  function act(action:string){void run(async()=>{const r=await request<Lesson>('/learning/session','POST',{action,attempted:Boolean(work.trim())},undefined,token);if(action==='continue'){if(work.trim())setNotes(n=>[...n,{label:labels[lesson!.stage],text:work}]);setWork('');setAnswer('');setExample('');}if(r.direct_explanation)setAnswer(r.direct_explanation);if(r.similar_example)setExample(r.similar_example);setLesson(r);});}
- function reset(){void run(async()=>{if(token)await request('/learning/session','DELETE',undefined,undefined,token);setToken('');setLesson(null);setAnswer('');setExample('');setWork('');setNotes([]);setSource('');setTopic('');setMode('guided');setVisualOpen(false);setVisualRevision(n=>n+1);});}
+ function reset(){void run(async()=>{if(token)await request('/learning/session','DELETE',undefined,undefined,token);setToken('');setLesson(null);setAnswer('');setExample('');setWork('');setNotes([]);setSource('');setTopic('');setMode('guided');setAttachOpen(false);setVisualOpen(false);setVisualRevision(n=>n+1);});}
  const started=Boolean(lesson||answer),independentCheck=lesson?.stage==='independent',complete=lesson?.stage==='complete';
  const prompt=lesson?.stage==='apply'?lesson.application:independentCheck?lesson.independent:lesson?.challenge;
  const blocked=busy||classroom.paused;
@@ -31,7 +34,8 @@ export default function Chat({classroom,user,independent=false,active=true}:{cla
  {started&&<button className="secondary" disabled={busy} onClick={reset}>New chat</button>}</div>
  <details className="exam-practice"><summary>Exam practice and past papers</summary><p>Find an official paper for {classroom.course.syllabus_subject} · {classroom.course.pathway} {classroom.course.qualification} · syllabus {classroom.course.code}. Check the paper year, tier and syllabus version before practising.</p>
  <p><a href={classroom.course.pathway==='Namibia'?'https://nied.edu.na/documents/questionpapers/':'https://www.cambridgeinternational.org/resource-centre/'} target="_blank" rel="noreferrer">{classroom.course.pathway==='Namibia'?'Open NIED’s official past-paper links':'Open Cambridge’s official paper resources'} (new tab)</a></p>
- <p>STEMMate does not currently host or search a past-paper library. Some resources require school access. Open your paper separately, choose the closest topic in Topic and support, then type a question here. Try it yourself before asking for a hint. Use the official mark scheme after your attempt; AI explanations are not official marking guidance.</p><p>For exam rehearsal, work through the paper without STEMMate help first. Afterwards, bring the steps you found difficult to the reasoning chat. Paper uploads and automatic exam marking are not enabled.</p></details>
+ <p>STEMMate does not currently host or search a past-paper library. Some resources require school access. Open your paper separately, choose the closest topic in Topic and support, then type a question here. Try it yourself before asking for a hint. Use the official mark scheme after your attempt; AI explanations are not official marking guidance.</p><p>For exam rehearsal, work through the paper without STEMMate help first. Afterwards, bring the steps you found difficult to the reasoning chat. Use Attach work for a photograph or typed answer and supplied marking criteria. Feedback is formative; marking criteria are not authenticated.</p></details>
+ {!independentCheck&&<div ref={attachHeading} tabIndex={-1} hidden={!attachOpen}><Suspense fallback={<p role="status">Loading attachment support…</p>}><AttachedWork key={visualRevision} classId={classroom.id} learningToken={token} disabled={blocked||!active} onClose={()=>{setAttachOpen(false);attachButton.current?.focus();}}/></Suspense></div>}
  {!independentCheck&&<div ref={visualHeading} tabIndex={-1} hidden={!visualOpen} className="visual-container" id={`${id}-visual`}><Suspense fallback={<p role="status">Loading visual activities…</p>}><VisualExplorer key={visualRevision} subject={classroom.course.subject} paused={classroom.paused} active={active&&visualOpen} onClose={()=>{setVisualOpen(false);visualButton.current?.focus();}}/></Suspense></div>}
  <div className="chat-conversation" aria-label="Conversation">
  {!started&&<div className="chat-welcome"><span className="chat-emblem" aria-hidden="true">SM</span><h3>Your ideas come first.</h3><p>Ask a STEM question or start a practice activity. We’ll work through it one thought at a time.</p><p className="chat-small">Choose a topic in “Topic and support”. For science, use supplied data and paper models; practical work requires qualified supervision.</p></div>}
@@ -57,6 +61,7 @@ export default function Chat({classroom,user,independent=false,active=true}:{cla
  <button type="button" aria-pressed={mode==='direct'} className={mode==='direct'?'selected':''} disabled={blocked||independentCheck||complete||(!lesson&&started)} onClick={()=>lesson?act('direct'):setMode('direct')}>Explain simply</button>
  <button type="button" disabled={blocked||!lesson||!['explain','feedback','apply'].includes(lesson.stage)} onClick={()=>act('example')}>Similar example</button>
  <button type="button" disabled={blocked||!lesson||independentCheck||complete} onClick={()=>setNotice('Self-check your reasoning: What rule supports each step? Are your assumptions and units consistent? Can you test a different case or find a counterexample? Revise your response below. This is a reflection prompt, not an AI assessment.')}>Check my reasoning</button>
+ <button type="button" ref={attachButton} disabled={blocked||independentCheck} aria-expanded={attachOpen&&!independentCheck} onClick={()=>{setAttachOpen(v=>!v);if(!attachOpen)requestAnimationFrame(()=>{attachHeading.current?.focus();attachHeading.current?.scrollIntoView({block:"start"});});}}>Attach work</button>
  <button type="button" ref={visualButton} aria-expanded={visualOpen&&!independentCheck} aria-controls={independentCheck?undefined:`${id}-visual`} disabled={blocked||independentCheck} onClick={()=>{setVisualOpen(v=>!v);if(!visualOpen)requestAnimationFrame(()=>{visualHeading.current?.focus();visualHeading.current?.scrollIntoView({block:'start'});});}}>Explore visually</button>
  <button type="button" disabled={blocked||lesson?.stage!=='apply'||!work.trim()} onClick={()=>act('continue')}>Try on my own</button>
  </div>
@@ -68,6 +73,6 @@ export default function Chat({classroom,user,independent=false,active=true}:{cla
  <VoiceTools key={String(active)+String(busy)+(lesson?.stage??mode)} allowDictation={classroom.voice_input_enabled} disabled={blocked||!active||(!lesson&&started)} readText={prompt} onTranscript={text=>lesson?setWork(v=>`${v}${v?' ':''}${text}`.slice(0,4000)):setTopic(v=>`${v}${v?' ':''}${text}`.slice(0,2000))}/>
  </form>}
  {error&&<p role="alert" className="error" tabIndex={-1} ref={errorRef}>{error}</p>}{busy&&<p role="status">Preparing support…</p>}
- <p className="chat-small">AI can make mistakes. Your attempts stay on this device. Direct answers and completed steps do not prove independent understanding.</p>
+ <p className="chat-small">AI can make mistakes. Chat attempts stay on this device; Attach work sends only the material you explicitly submit to AI. Direct answers and completed steps do not prove independent understanding.</p>
  </div></section>;
 }

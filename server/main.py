@@ -18,7 +18,7 @@ from typing import Literal
 from starlette.concurrency import run_in_threadpool
 from modules.learning import LearningStore, visible, advance
 from modules.tutor import make_plan, direct_explanation
-from modules import accounts, projects
+from modules import accounts, projects, attached_work
 from modules.curricula import catalogue, starter_plan, course_for
 
 store = LearningStore()
@@ -57,6 +57,13 @@ app.include_router(projects.router)
 
 @app.middleware('http')
 async def privacy_and_limits(request:Request, call_next):
+    if request.url.path.startswith('/work/'):
+        body=bytearray()
+        async for chunk in request.stream():
+            body.extend(chunk)
+            if len(body)>2_850_000:
+                return JSONResponse(status_code=413,content={'detail':'Attachment request too large.'},headers={'Cache-Control':'no-store'})
+        request._body=bytes(body)
     # Transient salted buckets protect password verification and invitation guessing.
     # No IPs are retained, logged, or included in evaluation data.
     limited = request.url.path in ('/auth/login','/auth/register','/classes/join')
@@ -221,3 +228,45 @@ def uploads_disabled():
 @app.get('/test')
 def health():
     return {'message':'STEMMate is running'}
+
+
+def attachment_access(value,user,token):
+    if value.class_id:
+        active_class(value.class_id,user)
+    if token:
+        with store.lock:
+            session,_=owned_session(token,user)
+            if session.class_id!=value.class_id or session.stage=='independent':
+                raise HTTPException(409,'Attachment support is unavailable during an independent check.')
+
+@app.post('/work/transcribe')
+async def transcribe_work(value:attached_work.Transcribe,x_learning_token:str=Header(default=''),user=Depends(accounts.current_user)):
+    attachment_access(value,user,x_learning_token)
+    if not value.consent:
+        raise HTTPException(400,'Confirm permission before sending work to the AI provider.')
+    reserve_ai()
+    try:
+        text=await run_in_threadpool(attached_work.transcribe,value.image)
+    except ValueError:
+        raise HTTPException(400,'Use a valid PNG or JPEG smaller than 2 MB and 12 million pixels.')
+    except Exception:
+        raise HTTPException(503,'Image reading is unavailable. You can type your work instead; nothing was saved by STEMMate.')
+    attachment_access(value,user,x_learning_token)
+    return {'transcription':text}
+
+@app.post('/work/feedback')
+async def review_work(value:attached_work.Review,x_learning_token:str=Header(default=''),user=Depends(accounts.current_user)):
+    attachment_access(value,user,x_learning_token)
+    if not value.consent or not value.confirmed:
+        raise HTTPException(400,'Confirm the transcription and AI processing permission first.')
+    if not value.question.strip() or not value.work.strip() or '[unclear]' in value.work.lower():
+        raise HTTPException(400,'Add the question and correct unclear text before requesting feedback.')
+    if value.mode=='scheme' and not value.scheme.strip():
+        raise HTTPException(400,'Provide the matching marking criteria first, or choose Help me improve.')
+    reserve_ai()
+    try:
+        text=await run_in_threadpool(attached_work.feedback,value)
+    except Exception:
+        raise HTTPException(503,'Feedback is unavailable. Your draft is still on this page; try again later.')
+    attachment_access(value,user,x_learning_token)
+    return {'feedback':text}
