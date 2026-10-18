@@ -8,7 +8,7 @@
 
 ## Verification
 
-- 76 backend tests passed, including the new missing/mismatched context and API clarification/no-store/no-provider-echo checks.
+- 78 backend tests passed, including the new missing/mismatched context and API clarification/no-store/no-provider-echo checks.
 - Eleven frontend suites passed, including aborting a stalled preparation request, no automatic retry, successful response and server-error handling.
 - TypeScript, frontend build, lint, tracked-private-file guard and diff whitespace checks passed.
 - Live provider probe: a programming FOR-loop objective with Mathematics selected required clarification. This single probe is not a subject-wide evaluation.
@@ -17,3 +17,5 @@
 ## Remaining release gates
 
 The current prototype is suitable for an honest supervised demonstration with fictional data. It is not certified ready for unrestricted school use. See MEIYSAC-PRESENTATION-READINESS.md for policy sources, pilot decisions, curriculum/content review, production/privacy approvals, physical-device/assistive-technology checks and residual historical-copy exposure. Do not claim full syllabus coverage, official marking, Ministry approval, guaranteed subject correctness or demonstrated learning gains. No merge or deployment performed.
+
+Live follow-up under the corrected Computing subject was blocked by the provider request allowance (RateLimitError). A new handler returns an actionable 429 without private provider text, retaining writing/prior drafts. Provider allowance remains an unresolved demonstration dependency; no plan, quota or spending was changed. No successful correct-subject live generation is claimed for this update.

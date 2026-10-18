@@ -44,3 +44,10 @@ class PlanningTests(unittest.TestCase):
         response.pop('context_status')
         with patch.object(planning,'model_reply',return_value=json.dumps(response)):
             with self.assertRaises(ValueError):planning.generate(value,classroom)
+
+    def test_provider_allowance_is_reported_without_private_payload(self):
+        class LimitError(Exception):status_code=429
+        value=planning.Preparation(mode='lesson',topic='Cells',objective='Describe cells',consent=True)
+        with patch.object(planning,'model_reply',side_effect=LimitError('PRIVATE_PROVIDER_PAYLOAD')):
+            with self.assertRaises(planning.ProviderLimit) as result:planning.generate(value,{'grade':10,'exam_year':2027,'course':{'subject':'biology'}})
+            self.assertNotIn('PRIVATE_PROVIDER_PAYLOAD',str(result.exception))

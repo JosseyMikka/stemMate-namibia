@@ -829,6 +829,13 @@ class ClassroomTests(unittest.TestCase):
             self.assertEqual(self.client.post('/teacher/preparation',headers=self.teacher,json=self.preparation()).status_code,429)
             generate.assert_not_called()
 
+    def test_preparation_provider_limit_is_actionable_and_private(self):
+        with patch.object(main.teacher_planning,'generate',side_effect=main.teacher_planning.ProviderLimit('PRIVATE_PROVIDER_TEXT')):
+            response=self.client.post('/teacher/preparation',headers=self.teacher,json=self.preparation())
+            self.assertEqual(response.status_code,429)
+            self.assertIn('provider request allowance',response.json()['detail'])
+            self.assertNotIn('PRIVATE_PROVIDER_TEXT',response.text)
+
     def test_preparation_subject_clarification_does_not_return_a_draft(self):
         with patch.object(main.teacher_planning,'generate',side_effect=main.teacher_planning.ContextMismatch('PRIVATE_MODEL_TEXT')):
             response=self.client.post('/teacher/preparation',headers=self.teacher,json=self.preparation())

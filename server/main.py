@@ -415,6 +415,8 @@ async def prepare_teaching(value:teacher_planning.Preparation,user=Depends(accou
     reserve_ai(user['id'])
     try:
         result=await run_in_threadpool(teacher_planning.generate,value,classroom)
+    except teacher_planning.ProviderLimit:
+        raise HTTPException(429,'The AI provider request allowance has been reached. Wait for it to reset or ask your administrator to check the provider account. Your writing and previous draft are still here.')
     except teacher_planning.ContextMismatch:
         raise HTTPException(422,'Check that your topic and objective match the selected subject. Choose the appropriate subject or clarify the objective, then try again. Your previous draft has not been replaced.')
     except Exception:

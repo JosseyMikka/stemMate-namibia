@@ -46,6 +46,7 @@ The research should test whether learners can solve a fresh task without AI, inc
 - AI materials can still contain wrong science, leaked answers, weak independent questions, inaccurate timings or unjustified labels. Editable drafts and review reminders reduce harm but do not solve factual validation.
 - Only 14 authored starters and selected diagrams/conceptual simulations exist. The catalogue does not mean full syllabus coverage. Paper uploads support formative assistance after transcription confirmation, not official examination marking or verified mark schemes.
 - Ordinary guided chat uses a structured reflection flow; it does not automatically assess every learner explanation. No proven learning-gain claim is justified yet.
+- A corrected-subject live follow-up hit the Groq request allowance. The app now reports this explicitly without exposing provider details. Check provider allowance before the meeting; live AI generation remains dependent on provider capacity. No billing or spending was enabled.
 - Local demo previews are not production hosting. Production security/provider approval, physical-device and assistive-technology testing, classroom load testing, expert content validation and incident readiness remain rollout gates. In-memory learning sessions/limits require a single server instance.
 - Cleaned selected repository history does not prove deletion of historical copies in upstream forks, caches, old clones or backups. Resolve the residual exposure assessment and rights/retention obligations separately before real learner use.
 
