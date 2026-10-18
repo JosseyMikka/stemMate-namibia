@@ -25,3 +25,10 @@ export function quizRequest(text:string):string|null{
  const match=text.trim().match(/^(?:(?:can|could|would) you\s+)?(?:please\s+)?(?:quiz me|give me a quiz|start (?:a )?quiz|(?:i want|i would like|i’d like|i'd like) a quiz)(?:\s+(?:on|about|in)\s+(.+?))?[.!?]*$/i);
  return match?(match[1]??'').replace(/[.!?]+$/,'').trim():null;
 }
+
+export function hintGuidance(used:number,maximum:number){
+ return used>=maximum?'You’ve used the available hints. Share what you understand, or choose Explain simply.':'If you’re unsure, ask for a hint.';
+}
+export function showChallenge(stage:Lesson['stage']){
+ return ['attempt','explain','apply','independent'].includes(stage);
+}

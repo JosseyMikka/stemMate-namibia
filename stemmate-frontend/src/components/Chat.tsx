@@ -1,6 +1,6 @@
 import {lazy,Suspense,useId,useRef,useState} from 'react';
 import {request,type Lesson,type Classroom,type User} from '../api/stemmateApi';
-import {needsClarification,nextPrompt,replyLabel,withClarification,quizRequest} from './chatGuidance';
+import {needsClarification,nextPrompt,replyLabel,withClarification,quizRequest,hintGuidance,showChallenge} from './chatGuidance';
 import VoiceTools from './VoiceTools';
 import {visualSuggestion,type VisualSelection} from './visualLinks';
 const QuizPractice=lazy(()=>import('./QuizPractice'));
@@ -65,11 +65,11 @@ export default function Chat({classroom,user,independent=false,active=true}:{cla
  {clarifying&&!started&&<><div className="chat-bubble learner-bubble"><p>{firstQuestion}</p></div><div className="chat-bubble tutor-bubble"><p>Which part feels tricky? You can add a question, or we can try a small example together.</p><button className="secondary" disabled={blocked} onClick={()=>begin(firstQuestion)}>Not sure—start with me</button></div></>}
  {started&&!independentCheck&&(topic||notes.length>0)&&<details className="earlier-thinking"><summary>Earlier question and thinking</summary>{topic&&<p className="learner-text">{topic}</p>}{notes.map((n,i)=><div key={i}><strong>{n.label}</strong><p className="learner-text">{n.text}</p></div>)}</details>}
  {lesson&&<div className="chat-bubble tutor-bubble">
- {['attempt','apply','independent'].includes(lesson.stage)&&<Message content={prompt??''}/>}
+ {showChallenge(lesson.stage)&&<Message content={prompt??''}/>}
  {lesson.stage==='explain'&&lesson.hints.map((h,i)=><aside className="hint" key={i}><strong>A small hint {i+1}</strong><Message content={h}/></aside>)}
  {lesson.stage==='feedback'&&<><Message content={lesson.explanation??''}/><p className="chat-small">This is a model explanation, not a mark.</p></>}
  {!complete&&<p>{nextPrompt(lesson.stage)}</p>}
- {lesson.stage==='explain'&&<p className="chat-small">If you’re unsure, ask for a hint.</p>}
+ {lesson.stage==='explain'&&<p className="chat-small">{hintGuidance(lesson.hints_used,lesson.max_hints)}</p>}
  {complete&&<><p>You’ve worked through the ideas. What could you explain without help?</p>{lesson.direct_used&&<p>You used worked support. Try a fresh problem independently next.</p>}<details><summary>Compare your answers</summary><h3>Application</h3><Message content={lesson.application??''}/><Message content={lesson.application_explanation??''}/><h3>Independent practice</h3><Message content={lesson.independent??''}/><Message content={lesson.independent_explanation??''}/></details><p className="chat-small">Finishing the steps is not a mastery score. Ask a teacher to review uncertain ideas.</p></>}
  {source==='ai_general_support'&&<p className="chat-small">AI support—check its reasoning and syllabus fit.</p>}
  </div>}

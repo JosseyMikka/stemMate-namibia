@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {needsClarification,nextPrompt,replyLabel,withClarification,quizRequest} from './chatGuidance';
+import {needsClarification,nextPrompt,replyLabel,withClarification,quizRequest,hintGuidance,showChallenge} from './chatGuidance';
 assert.equal(needsClarification('I don’t understand equations'),true);
 assert.equal(needsClarification('I am stuck'),true);
 assert.equal(needsClarification('Please help solve 2x+3=9'),false);
@@ -21,3 +21,13 @@ assert.equal(quizRequest('Quiz me on linear equations?'),'linear equations');
 
 assert.equal(quizRequest('Can you please quiz me on cells?'),'cells');
 assert.equal(quizRequest('I would like a quiz about acids'),'acids');
+
+assert.match(hintGuidance(0,3),/ask for a hint/);
+assert.match(hintGuidance(2,3),/ask for a hint/);
+assert.doesNotMatch(hintGuidance(3,3),/ask for a hint/);
+assert.match(hintGuidance(3,3),/Explain simply/);
+assert.match(hintGuidance(0,0),/available hints/);
+assert.equal(showChallenge('explain'),true);
+assert.equal(showChallenge('independent'),true);
+assert.equal(showChallenge('complete'),false);
+assert.equal(showChallenge('feedback'),false);
