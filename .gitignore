@@ -22,3 +22,16 @@ server/chroma_store/
 # OS files
 .DS_Store
 Thumbs.db
+
+# Private classroom identity store (never commit accounts or tokens)
+server/private/
+*.sqlite3-journal
+*.sqlite3-wal
+*.sqlite3-shm
+
+# Legacy identity/chat stores and local database backups
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite3.backup

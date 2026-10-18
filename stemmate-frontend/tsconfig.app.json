@@ -4,7 +4,7 @@
     "target": "es2023",
     "lib": ["ES2023", "DOM"],
     "module": "esnext",
-    "types": ["vite/client"],
+    "types": ["vite/client", "node"],
     "skipLibCheck": true,
 
     /* Bundler mode */
@@ -21,8 +21,5 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  // Type-check only what the app imports, starting from the entry point.
-  // The unfinished login/sidebar files (pages/Login, Register, ChatPage,
-  // components/Sidebar, context/AuthContext) aren't wired in yet and don't compile.
-  "include": ["src/main.tsx"]
+  "include": ["src"]
 }

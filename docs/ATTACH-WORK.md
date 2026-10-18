@@ -1,0 +1,25 @@
+# Attach work: private formative practice
+
+Chat → Attach work accepts one PNG/JPEG page (2 MB, 12 million pixels), a PDF (10 MB, 100 pages), or typed text. PDF.js renders the selected PDF page locally; only that page image is sent for transcription after explicit permission and Read this page. A searchable paper corpus and official automatic grading are not included. Learners supply the question, exact paper reference and matching criteria. The model cannot authenticate papers or criteria; marks, when criteria permit them, are provisional practice estimates. Teachers retain final decisions. Independent checks hide and disable this support; authenticated endpoints also reject a supplied independent-session token and paused/inaccessible class context. Like other browser-based practice, this is not a supervised examination or tamper-proof assessment.
+
+## Reasoning flow
+
+1. Crop out identifiers. Explicitly agree to AI processing before selecting an image.
+2. For a PDF, select a page and Preview selected page. Choose the destination (question, handwritten answer, supplied criteria), inspect the preview for identifiers, then Read this page. Changing the page discards the old preview. Reading replaces the destination field, resets confirmation and removes outdated feedback. The built-in fictional sample contains a question and a deliberately incorrect scanned answer. Read and edit the transcription. Correct every `[unclear]` and check signs, powers, labels and subscripts. Copy the question into Question if it appears in the transcription.
+3. Confirm that the text represents your work. Editing the question or work resets confirmation and clears outdated feedback.
+4. Choose Help me improve (one issue, guiding question and hint), supplied-criteria feedback, or an accessible direct explanation.
+5. Revise the work and explain the change. Try a different question without support. AI feedback may be wrong; no grades or mastery claims are stored.
+
+## Privacy and limits
+
+Uploads/transcripts/feedback are transient request data, not database records, evaluation events, teacher reports, a shared index or localStorage. Files are decoded with Pillow, limited by bytes/pixels/type, and re-encoded to JPEG without metadata before transmission. Request bodies have a 2.85 MB cap even without Content-Length; AI endpoints require sign-in, permission and the existing hourly call cap. No access-log output in the preview. Do not enable production request-body logging. These controls do not change the external provider's retention policies.
+
+Close keeps the in-page draft; Clear attached work and feedback removes it, the selected PDF and its preview. PDF loading tasks/workers are destroyed on replacement or unmount. New chat, refresh, sign-out or changing practice context removes it. Nothing is automatically shared with a teacher. No restore from backups or export is promised. No server-side upload retention means there is no attachment deletion endpoint.
+
+Set private `GROQ_VISION_MODEL` to an image-capable model available to the account (preview verified qwen/qwen3.8-27b); use `GROQ_MODEL` for text feedback. Missing/unavailable vision fails clearly with a typed-text alternative. Never commit keys. Runtime dependencies include Pillow and groq (provided through langchain-groq).
+
+## Validation
+
+37 backend tests cover permission, confirmation, missing/unclear text, missing criteria, anonymous access, paused classes, independent-stage rejection, byte limits and PNG sanitisation. Existing frontend suites, type check, lint and build run separately. Real provider checks used a generated, non-personal algebra image and typed answer. Browser typed feedback and privacy controls were exercised. Automated browser file selection was blocked by the Chrome extension's file-URL setting; full manual photo selection remains to verify, including real handwriting, diagrams, chemical structures, low light and rotated pages. No OCR accuracy benchmark or marking agreement study has been completed.
+
+PDF increment: actual text and scanned PDF rendering, distinct page images, invalid byte signatures, byte/pixel sizing and invalid page numbers have a new automated frontend suite. Browser sample end-to-end (page 1 question → page 2 work → confirmation → real AI feedback) passed; consent blocks sending, changing pages removes old previews, clear removes document/drafts, and 320px width has no horizontal overflow. Full local-file chooser automation remains blocked by extension permission. Password-protected PDFs are rejected; use an unlocked copy you are permitted to use. Complex fonts/image encodings and real handwriting still need wider device/document testing. Page rendering is bounded to an 1800px longest side and the existing image endpoint size cap; very detailed pages may need cropped photographs. No PDF scripts, attachments, links or interactive annotations are presented/executed by the UI; only a raster page is displayed. The PDF.js worker is bundled locally; no external document viewer or CDN is used.

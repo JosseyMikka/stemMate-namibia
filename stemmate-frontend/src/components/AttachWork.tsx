@@ -1,0 +1,39 @@
+import {lazy,Suspense,useId,useState} from 'react';
+import {request} from '../api/stemmateApi';
+import MessageContent from './MessageContent';
+import DisplayBoundary from './DisplayBoundary';
+const PdfPagePicker=lazy(()=>import('./PdfPagePicker'));
+export default function AttachWork({classId,learningToken,disabled,onClose}:{classId:number;learningToken:string;disabled:boolean;onClose:()=>void}){
+ const id=useId();
+ const [question,setQuestion]=useState(''),[work,setWork]=useState(''),[scheme,setScheme]=useState(''),[paper,setPaper]=useState('');
+ const [mode,setMode]=useState('guide'),[consent,setConsent]=useState(false),[confirmed,setConfirmed]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState(''),[feedback,setFeedback]=useState(''),[fileKey,setFileKey]=useState(0);
+ const [pdfBusy,setPdfBusy]=useState(false),[target,setTarget]=useState('work');
+ const [inputKind,setInputKind]=useState('photo'),[pdfVisited,setPdfVisited]=useState(false);
+ const hasText=Boolean(question||work||scheme)||inputKind==='type';
+ const blocked=busy||disabled||pdfBusy;
+ async function readImage(image:string){setConfirmed(false);setFeedback('');const r=await request<{transcription:string}>('/work/transcribe','POST',{image,consent,class_id:classId},undefined,learningToken);if(target==='question'){if(r.transcription.length>4000)throw new Error('This page contains too much text for one question. Use a cropped image or paste only the relevant question.');setQuestion(r.transcription);}else if(target==='scheme'){setScheme(r.transcription);setMode('scheme');}else setWork(r.transcription);setConfirmed(false);setFeedback('');}
+ async function perform(task:()=>Promise<void>){setBusy(true);setError('');try{await task();}catch(e){setError(e instanceof Error?e.message:'Please try again.');}finally{setBusy(false);}}
+ function clear(){setQuestion('');setWork('');setScheme('');setPaper('');setFeedback('');setConfirmed(false);setConsent(false);setError('');setFileKey(n=>n+1);setTarget('work');setInputKind('photo');setPdfVisited(false);}
+ return <section className="panel" aria-label="Attach work"><h3>Attach work</h3><button onClick={onClose} disabled={busy||pdfBusy}>Close attachment view</button>
+ <p>Is this a question, your working, or both? Choose how to add it below.</p>
+ <p className="chat-small">Remove names and personal details. Only submit material you may use. AI receives what you send; nothing is saved to teacher reports.</p>
+ <details><summary>How your work is handled</summary><p>Images are processed temporarily. STEMMate does not save images, PDFs, transcripts or feedback to its database. The AI provider has its own retention policies. Close keeps your in-page draft; Clear or refresh removes it. PDF pages stay local until you choose Read this page.</p></details>
+ <div role="group" aria-label="How to add work">{[['photo','Photo'],['pdf','PDF'],['type','Type instead']].map(([value,label])=><button key={value} aria-pressed={inputKind===value} disabled={blocked} onClick={()=>{setInputKind(value);if(value==='pdf')setPdfVisited(true);}}>{label}</button>)}</div>
+ <label className="check"><input type="checkbox" checked={consent} disabled={blocked} onChange={e=>setConsent(e.target.checked)}/>I understand and agree to send this work to the AI provider for transcription or feedback.</label>
+ {inputKind!=='type'&&<><label htmlFor={`${id}-target`}>Put the next transcription in</label><select id={`${id}-target`} value={target} disabled={blocked} onChange={e=>setTarget(e.target.value)}><option value="work">My handwritten answer</option><option value="question">Question from a paper</option><option value="scheme">Supplied marking criteria</option></select><p>Reading a page replaces the chosen field. Check it before confirming. You can attach the question first, then your answer.</p></>}
+ <div hidden={inputKind!=='photo'}><label htmlFor={`${id}-image`}>Photograph of work (PNG or JPEG, maximum 2 MB and 12 million pixels)</label>
+ <input key={fileKey} id={`${id}-image`} type="file" accept="image/png,image/jpeg" disabled={blocked||!consent} onChange={e=>{const file=e.target.files?.[0];if(!file)return;void perform(async()=>{if(!['image/png','image/jpeg'].includes(file.type)||file.size>2000000)throw new Error('Choose a PNG or JPEG smaller than 2 MB.');const encoded=await new Promise<string>((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(',')[1]);reader.onerror=()=>reject(new Error('Could not read this image.'));reader.readAsDataURL(file);});await readImage(encoded);});}}/></div>
+ {pdfVisited&&<div hidden={inputKind!=='pdf'}><DisplayBoundary fallback={<p role="alert">The PDF reader could not load. Your typed work is still here. Choose typed text or a photo, or copy important work before refreshing.</p>}><Suspense fallback={<p role="status">Loading PDF support…</p>}><PdfPagePicker key={fileKey} disabled={busy||disabled} consent={consent} onRead={readImage} onBusy={setPdfBusy}/></Suspense></DisplayBoundary></div>}
+ {hasText&&<><p>Is this what you meant? Correct any misread symbols before continuing.</p>
+ <label htmlFor={`${id}-question`}>Question</label><textarea id={`${id}-question`} maxLength={4000} value={question} disabled={blocked} onChange={e=>{setQuestion(e.target.value);setConfirmed(false);setFeedback('');}}/>
+ <label htmlFor={`${id}-work`}>Your work / editable transcription</label><textarea id={`${id}-work`} maxLength={8000} value={work} disabled={blocked} onChange={e=>{setWork(e.target.value);setConfirmed(false);setFeedback('');}}/>
+ <label className="check"><input type="checkbox" checked={confirmed} disabled={blocked} onChange={e=>setConfirmed(e.target.checked)}/>I checked the question and transcription, corrected unclear symbols and confirmed these fields accurately represent the question, my work and any supplied marking criteria.</label>
+ <label htmlFor={`${id}-mode`}>What support would you like?</label><select id={`${id}-mode`} value={mode} disabled={blocked} onChange={e=>{setMode(e.target.value);setFeedback('');}}><option value="guide">Help me improve</option><option value="scheme">Check against supplied marking criteria</option><option value="explain">Explain directly</option></select>
+ {mode==='scheme'&&<><label htmlFor={`${id}-paper`}>Paper reference and question number</label><input id={`${id}-paper`} value={paper} maxLength={500} disabled={blocked} onChange={e=>{setPaper(e.target.value);setConfirmed(false);setFeedback('');}}/><label htmlFor={`${id}-scheme`}>Matching marking criteria, including available marks</label><textarea id={`${id}-scheme`} maxLength={8000} value={scheme} disabled={blocked} onChange={e=>{setScheme(e.target.value);setConfirmed(false);setFeedback('');}}/><p>You must check these criteria match the question. STEMMate cannot authenticate a supplied scheme. Suggested marks are provisional practice estimates; a teacher makes final assessment decisions.</p></>}
+ <button disabled={blocked||!consent||!confirmed||!question.trim()||!work.trim()||(mode==='scheme'&&!scheme.trim())} onClick={()=>void perform(async()=>{const r=await request<{feedback:string}>('/work/feedback','POST',{question,work,scheme:mode==='scheme'?scheme:'',paper:mode==='scheme'?paper:'',mode,consent,confirmed,class_id:classId},undefined,learningToken);setFeedback(r.feedback);})}>Get feedback on my work</button>
+ </>}
+ <button className="secondary" disabled={busy||pdfBusy} onClick={clear}>Clear attached work and feedback</button>
+ {busy&&<p role="status">Preparing support…</p>}{error&&<p role="alert">{error}</p>}
+ {feedback&&<div aria-live="polite"><h4>AI practice feedback — check its reasoning</h4><MessageContent content={feedback}/><p>Revise your work above and explain why you changed it before asking for more feedback. For an independent check, attempt a new question without assistance. No automatic grades or evidence of mastery are recorded.</p></div>}
+ </section>;
+}
