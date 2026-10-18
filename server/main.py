@@ -20,7 +20,7 @@ from typing import Literal
 from starlette.concurrency import run_in_threadpool
 from modules.learning import LearningStore, visible, advance
 from modules.tutor import make_plan, direct_explanation
-from modules import accounts, projects, attached_work, quiz, release_config
+from modules import accounts, projects, attached_work, quiz, release_config, teacher_planning
 from modules.curricula import catalogue, starter_plan, course_for
 
 store = LearningStore()
@@ -399,3 +399,52 @@ def delete_quiz(x_learning_token:str=Header(default=''),user=Depends(accounts.cu
         if s and s.owner_id!=user['id']:raise HTTPException(403,'This quiz belongs to another account.')
         quizzes.sessions.pop(x_learning_token,None)
     return {'deleted':True}
+
+
+@app.post('/teacher/preparation')
+async def prepare_teaching(value:teacher_planning.Preparation,user=Depends(accounts.current_user)):
+    if user['role']!='teacher':
+        raise HTTPException(403,'Only teachers can prepare teaching materials.')
+    classroom=accounts.class_access(value.class_id,user,True) if value.class_id else {
+        'course':course_for(value.course_id,value.grade,value.exam_year),
+        'grade':value.grade,'exam_year':value.exam_year}
+    try:
+        teacher_planning.visual_for(classroom['course']['subject'],value.visual_id)
+    except ValueError:
+        raise HTTPException(422,'Choose an available visual companion for the selected subject.')
+    if not value.consent:
+        raise HTTPException(400,'Confirm AI processing permission before generating a draft.')
+    if value.mode in ('adapt','questions') and not value.content.strip():
+        raise HTTPException(400,'Provide the activity or lesson content first.')
+    reserve_ai(user['id'])
+    try:
+        result=await run_in_threadpool(teacher_planning.generate,value,classroom)
+    except teacher_planning.ProviderLimit:
+        raise HTTPException(429,'The AI provider request allowance has been reached. Wait for it to reset or ask your administrator to check the provider account. Your writing and previous draft are still here.')
+    except teacher_planning.ContextMismatch:
+        raise HTTPException(422,'Check that your topic and objective match the selected subject. Choose the appropriate subject or clarify the objective, then try again. Your previous draft has not been replaced.')
+    except Exception:
+        raise HTTPException(503,'Preparation is unavailable. Your writing is still on this page; try again later.')
+    if value.class_id:
+        accounts.class_access(value.class_id,user,True)
+    return result
+
+
+@app.post('/teacher/materials/transcribe')
+async def transcribe_teaching_material(value:teacher_planning.MaterialImage,user=Depends(accounts.current_user)):
+    if user['role']!='teacher':
+        raise HTTPException(403,'Only teachers can read teaching materials here.')
+    if not value.consent:
+        raise HTTPException(400,'Confirm permission before sending teaching materials to the AI provider.')
+    reserve_ai(user['id'])
+    try:
+        text=await run_in_threadpool(attached_work.transcribe,value.image,True)
+    except ValueError:
+        raise HTTPException(400,'Use a valid PNG or JPEG smaller than 2 MB and 12 million pixels.')
+    except Exception as error:
+        if getattr(error,'status_code',None)==429:
+            raise HTTPException(429,'The AI provider request allowance has been reached. Your lesson notes have not changed. Type the relevant content or try after the allowance resets.')
+        raise HTTPException(503,'Image reading is unavailable. Type the relevant content instead; your lesson notes have not changed.')
+    if not text.strip() or len(text)>6000:
+        raise HTTPException(422,'This page is empty or too long for lesson notes. Use a cropped image or type the relevant section.')
+    return {'transcription':text}

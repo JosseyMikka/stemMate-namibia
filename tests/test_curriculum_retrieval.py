@@ -7,7 +7,8 @@ from unittest.mock import MagicMock, patch
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'server'))
 from modules.tutor import model_reply, make_plan
-from modules.curricula import LESSONS
+from modules.curricula import LESSONS, catalogue, starter_plan
+from fastapi import HTTPException
 
 class RetrievalTests(unittest.TestCase):
     def test_unlabelled_documents_are_not_used_as_cross_curriculum_fallback(self):
@@ -47,3 +48,21 @@ class RetrievalTests(unittest.TestCase):
         from modules.tutor import reviewed_context
         with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ,{'STEMMATE_VECTORSTORE_DIR':directory}):
             self.assertEqual(reviewed_context('equations',{'id':'na-nssco','exam_year':2027},'linear'),'')
+
+    def test_biology_and_computing_starters_cannot_cross_subjects(self):
+        courses=catalogue()
+        biology=[c for c in courses if c['subject']=='biology']
+        computing=[c for c in courses if c['subject']=='computing']
+        self.assertEqual({c['pathway'] for c in biology},{'Namibia','Cambridge'})
+        self.assertEqual({c['pathway'] for c in computing},{'Namibia','Cambridge'})
+        bio_topics={t['id'] for c in biology for t in c['topics']}
+        cs_topics={t['id'] for c in computing for t in c['topics']}
+        self.assertFalse(bio_topics & cs_topics)
+        for selected,foreign in ((biology,cs_topics),(computing,bio_topics)):
+            for course in selected:
+                for topic in course['topics']:
+                    self.assertEqual(starter_plan(course,topic['id']),LESSONS[topic['id']])
+                for topic_id in foreign:
+                    with self.subTest(course=course['id'],foreign_topic=topic_id),self.assertRaises(HTTPException) as caught:
+                        starter_plan(course,topic_id)
+                    self.assertEqual(caught.exception.status_code,422)

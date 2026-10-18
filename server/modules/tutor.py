@@ -56,7 +56,7 @@ def model_reply(topic, band, instructions, course=None, topic_id=None):
     if not os.getenv('GROQ_API_KEY','').strip():
         raise ValueError('AI provider is not configured')
     from langchain_groq import ChatGroq
-    context = reviewed_context(topic, course, topic_id)
+    context = reviewed_context(topic, course, topic_id) if topic_id is not None else ''
     model = ChatGroq(model_name=os.getenv('GROQ_MODEL', 'openai/gpt-oss-120b'),
                      temperature=0.1, timeout=45, max_retries=1, max_tokens=4000)
     subject_safety = (course or {}).get('safety_notice', '')

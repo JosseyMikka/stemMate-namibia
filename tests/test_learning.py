@@ -788,4 +788,126 @@ class ClassroomTests(unittest.TestCase):
         for action in ['hint','direct','example']:self.assertEqual(self.action(action).status_code,409)
         self.assertNotIn('explanation',current);self.assertEqual(current['hints'],[])
 
+    def preparation(self, **changes):
+        return {'class_id':self.room['id'],'mode':'lesson','topic':'Equations','objective':'Explain inverse operations','content':'Solve 2x + 3 = 11 and explain each step.','resources':'Board only','minutes':40,'consent':True,**changes}
+
+    def test_preparation_teacher_ownership_and_validation(self):
+        value=self.preparation()
+        with patch.object(main.teacher_planning,'generate') as generate:
+            self.assertEqual(self.client.post('/teacher/preparation',json=value).status_code,401)
+            self.assertEqual(self.client.post('/teacher/preparation',headers=self.learner,json=value).status_code,403)
+            other=self.register('other_teacher','teacher')
+            self.assertEqual(self.client.post('/teacher/preparation',headers=other,json=value).status_code,403)
+            for changes,status in [({'consent':False},400),({'mode':'adapt','content':'  '},400),({'mode':'questions','content':''},400),({'objective':'  '},422),({'topic':'  '},422),({'minutes':0},422),({'mode':'unknown'},422),({'extra':'PRIVATE_VALUE'},422)]:
+                response=self.client.post('/teacher/preparation',headers=self.teacher,json=self.preparation(**changes))
+                self.assertEqual(response.status_code,status,response.text)
+                self.assertNotIn('PRIVATE_VALUE',response.text)
+            generate.assert_not_called()
+
+    def test_preparation_modes_are_transient_and_available_when_paused(self):
+        self.policy(paused=True)
+        for mode in ('lesson','adapt','questions'):
+            with patch.object(main.teacher_planning,'generate',return_value={'learner_draft':'PRIVATE_HANDOUT','teacher_guide':'PRIVATE_GUIDE','review_notes':'Check this.'}) as generate:
+                response=self.client.post('/teacher/preparation',headers=self.teacher,json=self.preparation(mode=mode))
+                self.assertEqual(response.status_code,200,response.text)
+                self.assertEqual(response.json()['teacher_guide'],'PRIVATE_GUIDE')
+                self.assertEqual(response.headers['cache-control'],'no-store')
+                self.assertEqual(generate.call_args.args[1]['course']['id'],'na-nssco')
+        self.assertEqual(len(main.store.sessions),0)
+        self.assertEqual(len(main.quizzes.sessions),0)
+        with accounts.db() as db:
+            tables=[row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type='table'")]
+            for table in tables:
+                self.assertNotIn('PRIVATE_HANDOUT',repr(db.execute('SELECT * FROM "'+table+'"').fetchall()))
+
+    def test_preparation_failure_and_budget(self):
+        with patch.object(main.teacher_planning,'generate',side_effect=RuntimeError('PRIVATE_PROVIDER_PAYLOAD')):
+            response=self.client.post('/teacher/preparation',headers=self.teacher,json=self.preparation())
+            self.assertEqual(response.status_code,503)
+            self.assertNotIn('PRIVATE_PROVIDER_PAYLOAD',response.text)
+        with patch.dict(os.environ,{'STEMMATE_AI_USER_HOURLY_LIMIT':'1'}),patch.object(main.teacher_planning,'generate') as generate:
+            self.assertEqual(self.client.post('/teacher/preparation',headers=self.teacher,json=self.preparation()).status_code,429)
+            generate.assert_not_called()
+
+    def test_teacher_materials_access_consent_limits_and_privacy(self):
+        value={'image':'fictional-test-image','consent':True}
+        with patch.object(main.attached_work,'transcribe',return_value='Visible notes') as transcribe:
+            self.assertEqual(self.client.post('/teacher/materials/transcribe',json=value).status_code,401)
+            self.assertEqual(self.client.post('/teacher/materials/transcribe',headers=self.learner,json=value).status_code,403)
+            self.assertEqual(self.client.post('/teacher/materials/transcribe',headers=self.teacher,json={**value,'consent':False}).status_code,400)
+            transcribe.assert_not_called()
+            response=self.client.post('/teacher/materials/transcribe',headers=self.teacher,json=value)
+            self.assertEqual(response.json(),{'transcription':'Visible notes'})
+            self.assertEqual(response.headers['cache-control'],'no-store')
+            transcribe.assert_called_once_with('fictional-test-image',True)
+        for text in ('','x'*6001):
+            with patch.object(main.attached_work,'transcribe',return_value=text):
+                self.assertEqual(self.client.post('/teacher/materials/transcribe',headers=self.teacher,json=value).status_code,422)
+        with patch.object(main.attached_work,'transcribe',side_effect=RuntimeError('PRIVATE_IMAGE_TEXT')):
+            response=self.client.post('/teacher/materials/transcribe',headers=self.teacher,json=value)
+            self.assertEqual(response.status_code,503)
+            self.assertNotIn('PRIVATE_IMAGE_TEXT',response.text)
+
+    def test_preparation_rejects_cross_subject_visual_before_provider(self):
+        with patch.object(main.teacher_planning,'generate') as generate:
+            response=self.client.post('/teacher/preparation',headers=self.teacher,json=self.preparation(visual_id='cell'))
+            self.assertEqual(response.status_code,422)
+            generate.assert_not_called()
+
+    def test_preparation_provider_limit_is_actionable_and_private(self):
+        with patch.object(main.teacher_planning,'generate',side_effect=main.teacher_planning.ProviderLimit('PRIVATE_PROVIDER_TEXT')):
+            response=self.client.post('/teacher/preparation',headers=self.teacher,json=self.preparation())
+            self.assertEqual(response.status_code,429)
+            self.assertIn('provider request allowance',response.json()['detail'])
+            self.assertNotIn('PRIVATE_PROVIDER_TEXT',response.text)
+
+    def test_preparation_subject_clarification_does_not_return_a_draft(self):
+        with patch.object(main.teacher_planning,'generate',side_effect=main.teacher_planning.ContextMismatch('PRIVATE_MODEL_TEXT')):
+            response=self.client.post('/teacher/preparation',headers=self.teacher,json=self.preparation())
+            self.assertEqual(response.status_code,422)
+            self.assertIn('match the selected subject',response.json()['detail'])
+            self.assertNotIn('learner_draft',response.json())
+            self.assertNotIn('PRIVATE_MODEL_TEXT',response.text)
+            self.assertEqual(response.headers['cache-control'],'no-store')
+
+    def test_preparation_rechecks_access_after_generation(self):
+        from fastapi import HTTPException
+        classroom=accounts.class_access(self.room['id'],{'id':1,'role':'teacher'},True)
+        with patch.object(main.accounts,'class_access',side_effect=[classroom,HTTPException(403,'Access changed')]),patch.object(main.teacher_planning,'generate',return_value={'learner_draft':'PRIVATE_HANDOUT','teacher_guide':'PRIVATE_GUIDE','review_notes':'Check this.'}):
+            response=self.client.post('/teacher/preparation',headers=self.teacher,json=self.preparation())
+            self.assertEqual(response.status_code,403)
+            self.assertNotIn('PRIVATE_GUIDE',response.text)
+
+    def test_preparation_without_classes_all_modes(self):
+        teacher=self.register('standalone_planner','teacher')
+        self.assertEqual(self.client.get('/classes',headers=teacher).json(),[])
+        result={'learner_draft':'Think first.','teacher_guide':'Teacher notes.','review_notes':'Review needed.'}
+        contexts=[('lesson','na-nssco',10),('adapt','na-nsscas-computing',12),('questions','cam-a-biology',12)]
+        with patch.object(main.accounts,'class_access',side_effect=AssertionError('No class lookup expected')):
+            for mode,course_id,grade in contexts:
+                value=self.preparation(mode=mode,class_id=0,course_id=course_id,grade=grade,exam_year=2027)
+                with patch.object(main.teacher_planning,'generate',return_value=result) as generate:
+                    response=self.client.post('/teacher/preparation',headers=teacher,json=value)
+                    self.assertEqual(response.status_code,200,response.text)
+                    self.assertEqual(generate.call_args.args[1]['course']['id'],course_id)
+                    self.assertEqual(generate.call_args.args[1]['grade'],grade)
+        self.assertEqual(self.client.get('/classes',headers=teacher).json(),[])
+
+    def test_preparation_standalone_context_and_role_validation(self):
+        base=self.preparation(class_id=0,course_id='na-nssco',grade=10,exam_year=2027)
+        with patch.object(main.teacher_planning,'generate') as generate:
+            self.assertEqual(self.client.post('/teacher/preparation',headers=self.learner,json=base).status_code,403)
+            for change in ({'course_id':'unknown'},{'course_id':'na-nsscas'},{'grade':9},{'exam_year':2028}):
+                response=self.client.post('/teacher/preparation',headers=self.teacher,json={**base,**change})
+                self.assertEqual(response.status_code,422,response.text)
+            generate.assert_not_called()
+
+    def test_preparation_legacy_class_context_remains_authoritative(self):
+        with patch.object(main.teacher_planning,'generate',return_value={'learner_draft':'Task','teacher_guide':'Guide','review_notes':'Review'}) as generate:
+            response=self.client.post('/teacher/preparation',headers=self.teacher,json=self.preparation(course_id='cam-a-biology',grade=12))
+            self.assertEqual(response.status_code,200,response.text)
+            context=generate.call_args.args[1]
+            self.assertEqual(context['course']['id'],'na-nssco')
+            self.assertEqual(context['grade'],10)
+
 if __name__=='__main__':unittest.main()
