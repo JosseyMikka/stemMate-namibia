@@ -24,7 +24,7 @@ class ClassroomTests(unittest.TestCase):
         self.addCleanup(self.tmp.cleanup)
         patch.dict(os.environ,{'STEMMATE_ACCOUNTS_DB':str(Path(self.tmp.name)/'accounts.sqlite3'),'STEMMATE_TEACHER_INVITE':INVITE}).start()
         self.addCleanup(patch.stopall)
-        main.store=LearningStore();main.quizzes=main.quiz.QuizStore();main.ai_calls.clear();main.auth_attempts.clear()
+        main.store=LearningStore();main.quizzes=main.quiz.QuizStore();main.ai_calls.clear();main.ai_user_calls.clear();main.auth_attempts.clear()
         self.client=TestClient(main.app)
         self.teacher=self.register('teacher','teacher')
         self.learner=self.register('learner')
@@ -213,7 +213,7 @@ class ClassroomTests(unittest.TestCase):
                     self.assertEqual(actual['grade'],grade)
                     self.assertEqual(actual['exam_year'],course['exam_years'][0])
                     self.client.delete('/quiz/session',headers={**self.learner,'X-Learning-Token':r.json()['token']})
-                    main.ai_calls.clear()
+                    main.ai_calls.clear();main.ai_user_calls.clear()
 
     def test_quiz_rejects_hidden_dependencies_and_ordinary_level_kinetics(self):
         plan=[{'question':f'Question {i}: explain conservation.','hints':['Concept','Strategy','Step'],'reasoning':'Reference'} for i in range(3)]
@@ -279,7 +279,7 @@ class ClassroomTests(unittest.TestCase):
                     self.assertNotIn('score',recap);self.assertNotIn('grade',recap)
                     self.assertNotIn('PRIVATE_SYNTHETIC',repr(main.quizzes.get(started.json()['token'])))
                     self.assertEqual(self.client.delete('/quiz/session',headers=headers).status_code,200)
-                    main.ai_calls.clear() # isolated test fixtures; no provider calls occur
+                    main.ai_calls.clear();main.ai_user_calls.clear() # isolated test fixtures; no provider calls occur
                     exercised.append((grade,course['id']))
         self.assertEqual(len(exercised),54)
 

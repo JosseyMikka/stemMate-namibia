@@ -1,3 +1,5 @@
+> Before real learner use: read the [release/privacy gate and administrator runbook](docs/RELEASE-AND-PRIVACY.md). Current-tree data removal does not erase historical Git copies.
+
 # STEMMate — reasoning before answers
 
 React/TypeScript and FastAPI support Mathematics, Physics, Chemistry, Biology and Computing practice for Grades 10–12.

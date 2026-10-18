@@ -251,3 +251,8 @@ def delete_evaluation(class_id:int,user=Depends(current_user)):
     with db() as connection:
         connection.execute('DELETE FROM activity_counts WHERE class_id=?',(class_id,))
     return {'deleted':True}
+
+
+def purge_expired_sessions():
+    with db() as connection:
+        connection.execute('DELETE FROM auth_sessions WHERE expires <= ?', (time.time(),))

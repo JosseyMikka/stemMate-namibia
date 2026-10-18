@@ -13,10 +13,20 @@ services:
       mountPath: /var/data
       sizeGB: 1
     buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT --workers 1
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT --workers 1 --no-access-log
     healthCheckPath: /test
     autoDeployTrigger: 'off'
     envVars:
+      - key: STEMMATE_ENV
+        value: production
+      - key: STEMMATE_SINGLE_WORKER_ACK
+        value: "1"
+      - key: STEMMATE_AI_HOURLY_LIMIT
+        value: "60"
+      - key: STEMMATE_AI_USER_HOURLY_LIMIT
+        value: "12"
+      - key: STEMMATE_PROVIDER_REVIEWED
+        sync: false
       - key: GROQ_API_KEY
         sync: false
       - key: STEMMATE_TEACHER_INVITE
@@ -31,8 +41,23 @@ services:
     rootDir: stemmate-frontend
     buildCommand: npm install --global pnpm@11.25.0 && pnpm install --frozen-lockfile && pnpm build
     staticPublishPath: dist
+    headers:
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: Referrer-Policy
+        value: no-referrer
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+      - path: /*
+        name: Permissions-Policy
+        value: 'camera=(), geolocation=(), microphone=(self)'
     autoDeployTrigger: 'off'
     envVars:
+      - key: STEMMATE_ENV
+        value: production
       - key: NODE_VERSION
         value: 22.16.0
       - key: VITE_API_URL

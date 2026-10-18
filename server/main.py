@@ -13,23 +13,29 @@ from collections import deque
 from time import monotonic
 from fastapi import FastAPI, Header, HTTPException, Depends, Request
 from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import Literal
 from starlette.concurrency import run_in_threadpool
 from modules.learning import LearningStore, visible, advance
 from modules.tutor import make_plan, direct_explanation
-from modules import accounts, projects, attached_work, quiz
+from modules import accounts, projects, attached_work, quiz, release_config
 from modules.curricula import catalogue, starter_plan, course_for
 
 store = LearningStore()
 quizzes = quiz.QuizStore()
 ai_calls = deque()
+ai_user_calls = {}
 auth_attempts = {}
 rate_salt = secrets.token_bytes(32)
+PRIVATE_HEADERS={'Cache-Control':'no-store','Referrer-Policy':'no-referrer','X-Content-Type-Options':'nosniff','X-Frame-Options':'DENY'}
 
 @asynccontextmanager
 async def lifespan(app):
+    release_config.validate()
+    projects.purge_expired()
+    accounts.purge_expired_sessions()
     with accounts.db():
         pass
     async def cleanup():
@@ -39,6 +45,7 @@ async def lifespan(app):
                 store.purge()
                 quizzes.purge()
                 projects.purge_expired()
+                accounts.purge_expired_sessions()
                 now = monotonic()
                 for key in list(auth_attempts):
                     if not auth_attempts[key] or auth_attempts[key][-1] < now-600:
@@ -53,20 +60,20 @@ async def lifespan(app):
 
 app = FastAPI(title='STEMMate thinking companion', lifespan=lifespan)
 app.add_middleware(CORSMiddleware,
-    allow_origins=os.getenv('STEMMATE_ORIGINS', 'http://localhost:5173').split(','),
+    allow_origins=release_config.origins(),
     allow_methods=['GET','POST','PUT','DELETE'], allow_headers=['Content-Type','Authorization','X-Learning-Token'])
 app.include_router(accounts.router)
 app.include_router(projects.router)
 
 @app.middleware('http')
 async def privacy_and_limits(request:Request, call_next):
-    body_limit=2_850_000 if request.url.path.startswith('/work/') else 30_000 if request.url.path in ('/quiz','/quiz/session') else None
+    body_limit=2_850_000 if request.url.path.startswith('/work/') else 30_000 if request.url.path in ('/quiz','/quiz/session') else 256_000
     if body_limit:
         body=bytearray()
         async for chunk in request.stream():
             body.extend(chunk)
             if len(body)>body_limit:
-                return JSONResponse(status_code=413,content={'detail':'Request too large.'},headers={'Cache-Control':'no-store'})
+                return JSONResponse(status_code=413,content={'detail':'Request too large.'},headers=PRIVATE_HEADERS)
         request._body=bytes(body)
     # Transient salted buckets protect password verification and invitation guessing.
     # No IPs are retained, logged, or included in evaluation data.
@@ -79,21 +86,41 @@ async def privacy_and_limits(request:Request, call_next):
             while bucket and bucket[0] < now-600:
                 bucket.popleft()
             if len(bucket)>=300 or len(auth_attempts)>5000:
-                return JSONResponse(status_code=429,content={'detail':'Too many sign-in or class-code attempts. Try again in ten minutes.'},headers={'Cache-Control':'no-store'})
+                return JSONResponse(status_code=429,content={'detail':'Too many sign-in or class-code attempts. Try again in ten minutes.'},headers=PRIVATE_HEADERS)
             bucket.append(now)
     response=await call_next(request)
     response.headers['Cache-Control']='no-store'
     response.headers['Referrer-Policy']='no-referrer'
+    response.headers['X-Content-Type-Options']='nosniff'
+    response.headers['X-Frame-Options']='DENY'
     return response
 
 
-def reserve_ai():
+@app.exception_handler(RequestValidationError)
+async def private_validation_error(request, error):
+    # FastAPI's default validation payload can echo passwords, work and images.
+    return JSONResponse(status_code=422,content={'detail':'Check the required fields and try again.'},headers=PRIVATE_HEADERS)
+
+
+def reserve_ai(user_id):
     with store.lock:
         now=monotonic()
         while ai_calls and ai_calls[0] < now-3600:
             ai_calls.popleft()
-        if len(ai_calls)>=60:
-            raise HTTPException(429,'The tutor has reached its hourly limit. Starter practice remains available.')
+        for key in list(ai_user_calls):
+            bucket=ai_user_calls[key]
+            while bucket and bucket[0] < now-3600:
+                bucket.popleft()
+            if not bucket:
+                del ai_user_calls[key]
+        bucket=ai_user_calls.get(user_id,deque())
+        headers={'Retry-After':'3600'}
+        if len(bucket)>=release_config.positive_limit('STEMMATE_AI_USER_HOURLY_LIMIT',12):
+            raise HTTPException(429,'You’ve reached your hourly AI limit. Starter practice remains available; try AI again later.',headers=headers)
+        if len(ai_calls)>=release_config.positive_limit('STEMMATE_AI_HOURLY_LIMIT',60) or len(ai_user_calls)>=5000:
+            raise HTTPException(429,'The tutor has reached its hourly limit. Starter practice remains available.',headers=headers)
+        bucket.append(now)
+        ai_user_calls[user_id]=bucket
         ai_calls.append(now)
 
 class Start(BaseModel):
@@ -155,7 +182,7 @@ async def start(value:Start,user=Depends(accounts.current_user)):
     classroom=learning_context(value,user)
     plan=starter_plan(classroom['course'],value.topic_id)
     if value.topic.strip():
-        reserve_ai()
+        reserve_ai(user['id'])
         course={**classroom['course'],'exam_year':classroom['exam_year'],'grade':classroom['grade']}
         try:
             plan=await run_in_threadpool(make_plan,value.topic,value.band,course,value.topic_id)
@@ -212,7 +239,7 @@ async def explain(value:Start,user=Depends(accounts.current_user)):
     plan=starter_plan(classroom['course'],value.topic_id)
     answer=plan['challenge']+'\n\n'+plan['explanation']
     if value.topic.strip():
-        reserve_ai()
+        reserve_ai(user['id'])
         course={**classroom['course'],'exam_year':classroom['exam_year'],'grade':classroom['grade']}
         try:
             answer=await run_in_threadpool(direct_explanation,value.topic,value.band,course,value.topic_id)
@@ -248,7 +275,7 @@ async def transcribe_work(value:attached_work.Transcribe,x_learning_token:str=He
     attachment_access(value,user,x_learning_token)
     if not value.consent:
         raise HTTPException(400,'Confirm permission before sending work to the AI provider.')
-    reserve_ai()
+    reserve_ai(user['id'])
     try:
         text=await run_in_threadpool(attached_work.transcribe,value.image)
     except ValueError:
@@ -267,7 +294,7 @@ async def review_work(value:attached_work.Review,x_learning_token:str=Header(def
         raise HTTPException(400,'Add the question and correct unclear text before requesting feedback.')
     if value.mode=='scheme' and not value.scheme.strip():
         raise HTTPException(400,'Provide the matching marking criteria first, or choose Help me improve.')
-    reserve_ai()
+    reserve_ai(user['id'])
     try:
         text=await run_in_threadpool(attached_work.feedback,value)
     except Exception:
@@ -305,7 +332,7 @@ async def start_quiz(value:Start,x_learning_token:str=Header(default=''),user=De
     attachment_access(value,user,x_learning_token)
     if not value.consent:raise HTTPException(400,'Agree to AI processing of quiz answers and reasoning first.')
     starter_plan(classroom['course'],value.topic_id)
-    reserve_ai()
+    reserve_ai(user['id'])
     course={**classroom['course'],'grade':classroom['grade'],'exam_year':classroom['exam_year']}
     requested=value.topic.strip() or next(t['label'] for t in course['topics'] if t['id']==value.topic_id)
     try:plan=await run_in_threadpool(quiz.make_quiz,requested,value.band,course)
@@ -349,7 +376,7 @@ async def quiz_action(value:QuizAction,x_learning_token:str=Header(default=''),u
         # Recompute a lost feedback response from the resubmitted text; do not
         # cache private answers/feedback or count the question twice.
         if not value.answer.strip() or not value.reasoning.strip():raise HTTPException(400,'Add your answer and explain your thinking. “I’m unsure because…” is enough.')
-        reserve_ai();s.inflight=True
+        reserve_ai(user['id']);s.inflight=True
         question=s.plan[s.index]
     try:
         text=await run_in_threadpool(quiz.feedback,question,value.answer,value.reasoning,s.band)

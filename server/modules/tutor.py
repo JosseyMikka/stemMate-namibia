@@ -33,7 +33,10 @@ def reviewed_context(topic, course, topic_id):
     """Load reviewed retrieval only when an actual local index exists."""
     import os
     from pathlib import Path
-    directory = Path(os.getenv('STEMMATE_VECTORSTORE_DIR', str(Path(__file__).resolve().parents[1] / 'chroma_store')))
+    configured = os.getenv('STEMMATE_VECTORSTORE_DIR', '').strip()
+    if not configured:
+        return ''
+    directory = Path(configured)
     if not course or not (directory / 'chroma.sqlite3').is_file():
         return ''
     from langchain_community.vectorstores import Chroma
