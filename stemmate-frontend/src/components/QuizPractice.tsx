@@ -1,4 +1,4 @@
-import {useId,useRef,useState} from 'react';
+import {useEffect,useId,useRef,useState} from 'react';
 import {request,type Classroom} from '../api/stemmateApi';
 import MessageContent from './MessageContent';
 import VoiceTools from './VoiceTools';
@@ -7,6 +7,7 @@ export default function QuizPractice({classroom,topicId,band,initialTopic,learni
  const id=useId(),pending=useRef(false),title=useRef<HTMLHeadingElement>(null),errorRef=useRef<HTMLParagraphElement>(null);
  const [topic,setTopic]=useState(initialTopic),[consent,setConsent]=useState(false),[quiz,setQuiz]=useState<Quiz|null>(null),[token,setToken]=useState('');
  const [answer,setAnswer]=useState(''),[reason,setReason]=useState(''),[reflection,setReflection]=useState(''),[notes,setNotes]=useState<string[]>([]),[busy,setBusy]=useState(false),[error,setError]=useState('');
+ useEffect(()=>{title.current?.focus();},[]);
  const blocked=busy||!active||classroom.paused;
  async function run(task:()=>Promise<void>){if(pending.current)return;pending.current=true;setBusy(true);setError('');try{await task();requestAnimationFrame(()=>title.current?.focus());}catch(e){setError(e instanceof Error?e.message:'Please try again.');requestAnimationFrame(()=>errorRef.current?.focus());}finally{pending.current=false;setBusy(false);}}
  function start(){if(blocked||!consent)return;void run(async()=>{const r=await request<Quiz>('/quiz','POST',{class_id:classroom.id,course_id:classroom.course_id,grade:classroom.grade,exam_year:classroom.exam_year,topic_id:topicId,topic,band,consent},undefined,learningToken);setToken(r.token!);setQuiz(r);});}
