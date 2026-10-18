@@ -15,3 +15,11 @@ Visible names identify every subject; decorative symbols are hidden from assisti
 Automated tests require at least 4.5:1 contrast for badge text and white emblem text, and 3:1 for the header accent against the chat background. These checks cover the new accents, not complete WCAG conformance. Existing focus, reduced-motion and reasoning/privacy behaviour remains.
 
 Validation: nine frontend suites, build/typecheck and lint; browser applied all five subjects and checked computed colours, Physics starter → uncertainty → hint, and Computing at a 320px viewport (305px client/scroll width, no horizontal overflow). Desktop viewport restored. No merge/deployment/history rewrite.
+
+## Expanded responsive verification
+
+All five subjects were checked at viewport widths 320, 390 and 1280 pixels in three states: welcome, authored starter after “I’m not sure” and first hint, and expanded More options (45 screen states). Computed badge colours matched the applied subject, and document scroll width did not exceed client width. No new visual defect was found, so no interface change was necessary.
+
+Computing was additionally checked at 390×480: keyboard Enter opened/closed More options, an existing learner draft survived and Send my thinking stayed enabled. At 320px the long Computing / Computer Science label wrapped inside its badge. Desktop viewport was restored. Nine frontend suites, build/typecheck and lint passed again.
+
+These are desktop Chrome viewport checks, not physical iOS/Android or virtual-keyboard tests, and not a full accessibility audit. Both curricula share this subject palette; the responsive matrix used the default Namibia Grade 10 context and authored activities, without making AI-provider calls. No history rewrite, merge or deployment was performed.
