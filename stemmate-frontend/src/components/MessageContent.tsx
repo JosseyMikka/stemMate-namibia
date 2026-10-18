@@ -3,7 +3,7 @@ import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 
 function displayMath(math:string){
-  const value=math.trim();
+  const value=math.trim().replace(/(?<!\\)\\{1,3}\[(-?\d+(?:\.\d+)?(?:pt|em|ex|mm|cm|in|mu))\]/g, (_,space:string) => '\\\\['+space+']');
   // Bare display rows need an alignment environment for row spacing to render.
   const rows=/\\\\/.test(value)&&! /\\begin\{/.test(value);
   return `\n\n$$\n${rows?'\\begin{aligned}\n'+value+'\n\\end{aligned}':value}\n$$\n\n`;

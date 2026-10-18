@@ -39,9 +39,13 @@ for(const content of [String.raw`$$2x+3-3=11-3\\[2pt]\Rightarrow2x=8$$`,String.r
  assert.match(rows,/katex-display/);
  assert.doesNotMatch(rows,/katex-error/);
  assert.match(rows,/begin\{aligned\}/);
- const visible=rows.replace(/<annotation[^>]*>[\s\S]*?<\/annotation>/g,'');
+ const visible=rows.replace(/<annotation[^>]*>[\s\S]*?<\/annotation>/g,'').replace(/<[^>]*>/g,'');
  assert.doesNotMatch(visible,/2pt/);
 }
 const aligned=render(String.raw`$$\begin{aligned}x&=2\\[2pt]y&=3\end{aligned}$$`);
 assert.doesNotMatch(aligned,/katex-error/);
 assert.equal((aligned.match(/begin\{aligned\}/g)??[]).length,1);
+
+// Repair the malformed single-slash spacing marker observed in live output.
+const malformedRows=render(String.raw`$$2x=8\[2pt]\Rightarrow x=4$$`);
+assert.doesNotMatch(malformedRows.replace(/<annotation[^>]*>[\s\S]*?<\/annotation>/g,'').replace(/<[^>]*>/g,''),/2pt/);

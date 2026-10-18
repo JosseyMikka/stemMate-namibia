@@ -10,7 +10,7 @@ During the independent check, hints, direct explanations, attachment, quiz and v
 
 ## Issue fixed
 
-A generated bare display equation used a LaTeX row break with optional spacing, showing a stray spacing marker. Bare multiline display maths is now wrapped in an alignment environment; existing explicit environments are preserved. Alternate display delimiter recognition also avoids mistaking the second slash of a row break for an opening delimiter. Regression tests cover dollar and bracket delimiters, no visible spacing marker, accessible math and existing aligned equations. Code snippets and existing content-safety constraints remain protected.
+A generated bare display equation used a LaTeX row break with optional spacing, showing a stray spacing marker. Bare multiline display maths is now wrapped in an alignment environment; existing explicit environments are preserved. Alternate display delimiter recognition also avoids mistaking the second slash of a row break for an opening delimiter. A malformed single-slash numeric spacing marker is normalised inside display maths before rendering. Regression tests cover dollar and bracket delimiters, no visible spacing marker in extracted rendered text, accessible math and existing aligned equations. Code snippets and existing content-safety constraints remain protected.
 
 After rebuilding desktop and Wi-Fi previews, a complete authored-starter journey was repeated at 320×360, through independent submission and final comparison. Changing to 667×300 retained the independent draft and allowed submission. No horizontal document overflow was measured (305/305px portrait, 652/652px landscape client/scroll widths). Nine frontend suites, build/typecheck and lint passed.
 
