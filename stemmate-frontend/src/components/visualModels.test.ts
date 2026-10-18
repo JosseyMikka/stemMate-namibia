@@ -50,8 +50,8 @@ assert.equal(complete.phase,'complete');
 assert.throws(()=>recordExplanation(complete,'Overwrite'));
 assert.equal(initial.phase,'predict');
 // Every visual has an accessible alternative and uses no external image resource.
-for(const component of [CellDiagram,MoleculeDiagram]){
- const html=renderToStaticMarkup(createElement(component));
+for(const render of [()=>createElement(CellDiagram),()=>createElement(MoleculeDiagram)]){
+ const html=renderToStaticMarkup(render());
  assert.match(html,/role="img"/);assert.match(html,/<title/);assert.match(html,/<desc/);assert.match(html,/<figcaption/);
  assert.doesNotMatch(html,/<img|<iframe|<script/);
 }

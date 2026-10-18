@@ -2,6 +2,7 @@ import {lazy,Suspense,useId,useRef,useState} from 'react';
 import {request,type Lesson,type Classroom,type User} from '../api/stemmateApi';
 import {needsClarification,nextPrompt,replyLabel,withClarification,quizRequest} from './chatGuidance';
 import VoiceTools from './VoiceTools';
+import {visualSuggestion,type VisualSelection} from './visualLinks';
 const QuizPractice=lazy(()=>import('./QuizPractice'));
 const AttachedWork=lazy(()=>import('./AttachWork'));
 const VisualExplorer=lazy(()=>import('./ExploreVisually'));
@@ -16,10 +17,14 @@ export default function Chat({classroom,user,independent=false,active=true}:{cla
  const [mode,setMode]=useState('guided'),[token,setToken]=useState(''),[lesson,setLesson]=useState<Lesson|null>(null);
  const [work,setWork]=useState(''),[notes,setNotes]=useState<{label:string;text:string}[]>([]),[answer,setAnswer]=useState(''),[example,setExample]=useState('');
  const [attachOpen,setAttachOpen]=useState(false),[attachVisited,setAttachVisited]=useState(false),[visualOpen,setVisualOpen]=useState(false),[visualVisited,setVisualVisited]=useState(false),[revision,setRevision]=useState(0);
+ const [visualSelection,setVisualSelection]=useState<VisualSelection>({activity:classroom.course.subject==='biology'?'cell':'molecules'});
+ const visualTrigger=useRef<HTMLButtonElement|null>(null),visualRequest=useRef(0);
  const panel=useRef<HTMLDivElement>(null),attachButton=useRef<HTMLButtonElement>(null),more=useRef<HTMLDetailsElement>(null);
  const [source,setSource]=useState(''),[notice,setNotice]=useState(''),[error,setError]=useState(''),[busy,setBusy]=useState(false),[consent,setConsent]=useState(false);
  const started=Boolean(lesson||answer),independentCheck=lesson?.stage==='independent',complete=lesson?.stage==='complete',blocked=busy||classroom.paused||!active||quizOpen;
  const prompt=lesson?.stage==='apply'?lesson.application:independentCheck?lesson.independent:lesson?.challenge;
+ const suggestion=!independentCheck&&(answer||example||lesson?.stage==='feedback'||complete)?visualSuggestion(topic||lesson?.challenge||'',answer||example||lesson?.explanation||'',classroom.course.subject):null;
+ function openSuggestedVisual(button:HTMLButtonElement){if(!suggestion||blocked||independentCheck)return;visualTrigger.current=button;setVisualSelection({...suggestion.selection,request:++visualRequest.current});setVisualVisited(true);setVisualOpen(true);setAttachOpen(false);if(more.current)more.current.open=false;requestAnimationFrame(()=>{panel.current?.focus();panel.current?.scrollIntoView({block:'start'});});}
  function focusReply(){requestAnimationFrame(()=>input.current?.focus());}
  async function run(task:()=>Promise<void>,allowPaused=false){if(pending.current||(!allowPaused&&(classroom.paused||!active)))return;pending.current=true;setBusy(true);setError('');setNotice('');try{await task();requestAnimationFrame(()=>heading.current?.focus());}catch(e){setError(e instanceof Error?e.message:'Please try again.');requestAnimationFrame(()=>errorRef.current?.focus());}finally{pending.current=false;setBusy(false);}}
  const context={class_id:classroom.id,course_id:classroom.course_id,grade:classroom.grade,exam_year:classroom.exam_year,topic_id:topicId,band};
@@ -41,7 +46,7 @@ export default function Chat({classroom,user,independent=false,active=true}:{cla
  function reset(){void run(async()=>{if(token)await request('/learning/session','DELETE',undefined,undefined,token);setToken('');setLesson(null);setAnswer('');setExample('');setWork('');setNotes([]);setSource('');setTopic('');setFirstQuestion('');setClarifying(false);setHelpAsking(false);setMode('guided');setAttachOpen(false);setVisualOpen(false);setAttachVisited(false);setVisualVisited(false);setRevision(n=>n+1);},true);}
  function showPanel(kind:'attach'|'visual'){
   if(more.current)more.current.open=false;
-  if(kind==='attach'){setAttachVisited(true);setAttachOpen(!attachOpen);setVisualOpen(false);}else{setVisualVisited(true);setVisualOpen(!visualOpen);setAttachOpen(false);}
+  if(kind==='attach'){setAttachVisited(true);setAttachOpen(!attachOpen);setVisualOpen(false);}else{visualTrigger.current=null;setVisualVisited(true);setVisualOpen(!visualOpen);setAttachOpen(false);}
   requestAnimationFrame(()=>{panel.current?.focus();panel.current?.scrollIntoView({block:'start'});});
  }
  function hint(){if(lesson?.stage==='explain'){act('hint');return;}setMode('guided');setNotice(lesson?'Share a first idea below—even “I’m stuck”. Then I can offer a small hint.':'Send a question first. We’ll start with your idea and take it one hint at a time.');focusReply();}
@@ -49,7 +54,7 @@ export default function Chat({classroom,user,independent=false,active=true}:{cla
  <div className="chat-topbar"><div><span className="eyebrow">{independent?'Independent practice':classroom.name}</span><h2 ref={heading} tabIndex={-1}>{lesson?labels[lesson.stage]:'What are you working on?'}</h2></div>{(started||clarifying)&&<button className="secondary" disabled={busy} onClick={reset}>New chat</button>}</div>
  {!independentCheck&&(attachVisited||visualVisited)&&<div ref={panel} tabIndex={-1}>
  {attachVisited&&<div hidden={!attachOpen}><Suspense fallback={<p role="status">Opening your work…</p>}><AttachedWork key={revision} classId={classroom.id} learningToken={token} disabled={blocked||!attachOpen} onClose={()=>{setAttachOpen(false);attachButton.current?.focus();}}/></Suspense></div>}
- {visualVisited&&<div hidden={!visualOpen} className="visual-container"><Suspense fallback={<p role="status">Opening visual activities…</p>}><VisualExplorer key={revision} subject={classroom.course.subject} paused={classroom.paused} active={active&&!quizOpen&&visualOpen} onClose={()=>{setVisualOpen(false);more.current?.querySelector('summary')?.focus();}}/></Suspense></div>}
+ {visualVisited&&<div hidden={!visualOpen} className="visual-container"><Suspense fallback={<p role="status">Opening visual activities…</p>}><VisualExplorer key={revision} selection={visualSelection} onSelect={setVisualSelection} paused={classroom.paused} active={active&&!quizOpen&&visualOpen} onClose={()=>{setVisualOpen(false);if(visualTrigger.current?.isConnected)visualTrigger.current.focus();else more.current?.querySelector('summary')?.focus();}}/></Suspense></div>}
  </div>}
  <div className="chat-conversation" aria-label="Conversation">
  {!started&&!clarifying&&<div className="chat-welcome"><span className="chat-emblem" aria-hidden="true">SM</span><h3>Start wherever you are.</h3><p>A question, a first idea, or “I’m stuck” is enough.</p>
@@ -70,6 +75,7 @@ export default function Chat({classroom,user,independent=false,active=true}:{cla
  </div>}
  {answer&&!independentCheck&&<div className="chat-bubble tutor-bubble"><Message content={answer}/><p>How would you explain this in your own words?</p>{!lesson&&<button className="secondary" disabled={blocked} onClick={()=>{setMode('guided');begin(topic,'guided');}}>Try it together</button>}</div>}
  {example&&!independentCheck&&<div className="chat-bubble tutor-bubble"><Message content={example}/><p>Use the method to explain your own steps. This is supported practice.</p></div>}
+ {suggestion&&<button ref={visualTrigger} className="secondary" disabled={blocked} aria-expanded={visualOpen} onClick={e=>openSuggestedVisual(e.currentTarget)}>{suggestion.label}</button>}
  </div>
  <div className={`chat-composer${attachOpen||visualOpen?' with-panel':''}`}>
  <div className="reasoning-options" role="group" aria-label="Reasoning support">

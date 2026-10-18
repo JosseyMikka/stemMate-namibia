@@ -5,8 +5,8 @@ const molecules:Record<string,{name:string;atoms:Atom[];bonds:[number,number,num
  carbon:{name:'Carbon dioxide · CO₂',atoms:[{element:'C',x:180,y:105},{element:'O',x:70,y:105},{element:'O',x:290,y:105}],bonds:[[0,1,2],[0,2,2]],description:'One carbon atom joined to two oxygen atoms, with two double covalent bonds.'},
  methane:{name:'Methane · CH₄',atoms:[{element:'C',x:180,y:105},{element:'H',x:180,y:35},{element:'H',x:85,y:105},{element:'H',x:275,y:105},{element:'H',x:180,y:180}],bonds:[[0,1,1],[0,2,1],[0,3,1],[0,4,1]],description:'One carbon atom joined to four hydrogen atoms by single covalent bonds. The real molecule is tetrahedral; this flat drawing only shows connectivity.'}
 };
-export function MoleculeDiagram(){
- const [choice,setChoice]=useState('water'),id=useId(),m=molecules[choice];
+export function MoleculeDiagram({initialChoice='water'}:{initialChoice?:'water'|'carbon'|'methane'}={}){
+ const [choice,setChoice]=useState<string>(initialChoice),id=useId(),m=molecules[choice];
  return <div><div role="group" aria-label="Choose a molecule" className="visual-choices">{Object.entries(molecules).map(([key,value])=><button className="secondary" aria-pressed={choice===key} key={key} onClick={()=>setChoice(key)}>{value.name}</button>)}</div>
  <figure className="science-figure"><svg viewBox="0 0 360 220" role="img" aria-labelledby={`${id}-title ${id}-description`}><title id={`${id}-title`}>{m.name+' molecule schematic'}</title><desc id={`${id}-description`}>{m.description} Element letters identify atoms; lines identify bonds. Not to scale.</desc>
  {m.bonds.map(([a,b,order],i)=>{const first=m.atoms[a],second=m.atoms[b],horizontal=Math.abs(first.x-second.x)>Math.abs(first.y-second.y);return <g key={i}>{Array.from({length:order},(_,j)=><line key={j} x1={first.x+(horizontal?0:(j*8-4))} y1={first.y+(horizontal?(j*8-4):0)} x2={second.x+(horizontal?0:(j*8-4))} y2={second.y+(horizontal?(j*8-4):0)} stroke="#243e58" strokeWidth="4"/>)}</g>;})}
@@ -14,8 +14,8 @@ export function MoleculeDiagram(){
  <p>Original 2D schematic: circles are symbolic atoms, not their real sizes, colours or bond angles. This is not a rotatable 3D molecular model. Count the atoms and explain what the formula tells you.</p></div>;
 }
 const parts={membrane:{name:'Cell membrane',detail:'A selectively permeable boundary that regulates exchange with the surroundings.'},nucleus:{name:'Nucleus',detail:'Contains most of the cell’s DNA. The nuclear envelope separates it from the cytoplasm.'},mitochondrion:{name:'Mitochondrion',detail:'Many steps of aerobic respiration occur here, supporting ATP production. The inner membrane is folded.'},cytoplasm:{name:'Cytoplasm',detail:'The region outside the nucleus and inside the cell membrane, containing cytosol and organelles. Many chemical reactions occur here.'}};
-export function CellDiagram(){
- const [selected,setSelected]=useState<keyof typeof parts>('membrane'),id=useId();
+export function CellDiagram({initialPart='membrane'}:{initialPart?:keyof typeof parts}={}){
+ const [selected,setSelected]=useState<keyof typeof parts>(initialPart),id=useId();
  return <div><figure className="science-figure"><svg viewBox="0 0 420 250" role="img" aria-labelledby={`${id}-title ${id}-description`}><title id={`${id}-title`}>Simplified animal cell</title><desc id={`${id}-description`}>An outer cell membrane surrounds cytoplasm. A nucleus lies inside; two mitochondria with folded inner membranes sit outside the nucleus. Not all organelles are shown.</desc>
  <ellipse cx="210" cy="125" rx="190" ry="100" fill="#e5f5ed" stroke={selected==='membrane'?'#18579a':'#274a42'} strokeWidth={selected==='membrane'?7:3}/>
  <ellipse cx="195" cy="117" rx="57" ry="49" fill="#e7def8" stroke={selected==='nucleus'?'#18579a':'#574477'} strokeWidth={selected==='nucleus'?7:3}/><circle cx="205" cy="110" r="15" fill="#bda9dc"/>

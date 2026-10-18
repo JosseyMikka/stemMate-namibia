@@ -32,3 +32,7 @@ Explore visually is disabled and its panel unmounted during the chat independent
 ## Verification
 
 Unit tests exhaust coefficient combinations, check particle conservation/reflection symmetry/closed membranes/equilibrium, test the illustrative enzyme trend and reject invalid inputs. Workflow tests reject runs before prediction, observations before results and explanations before observation; they verify frozen condition snapshots. Render checks cover SVG accessible alternatives and absence of external images/iframes. Browser tests exercise prediction → observation → explanation, repeat trials, model switching/closing retention, the cell structure controls, both membrane states, enzyme output, 320px reflow and independent-check blocking.
+
+## Contextual chat connections
+
+Relevant explanations can now open a selected diagram/activity through one optional chat button. New membrane and enzyme-study schematics lead into existing guided models. See [connections, scientific limits and verification](CONTEXTUAL-VISUALS.md).
