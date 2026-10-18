@@ -18,10 +18,11 @@ from typing import Literal
 from starlette.concurrency import run_in_threadpool
 from modules.learning import LearningStore, visible, advance
 from modules.tutor import make_plan, direct_explanation
-from modules import accounts, projects, attached_work
+from modules import accounts, projects, attached_work, quiz
 from modules.curricula import catalogue, starter_plan, course_for
 
 store = LearningStore()
+quizzes = quiz.QuizStore()
 ai_calls = deque()
 auth_attempts = {}
 rate_salt = secrets.token_bytes(32)
@@ -35,6 +36,7 @@ async def lifespan(app):
             await asyncio.sleep(60)
             with store.lock:
                 store.purge()
+                quizzes.purge()
                 projects.purge_expired()
                 now = monotonic()
                 for key in list(auth_attempts):
@@ -57,12 +59,13 @@ app.include_router(projects.router)
 
 @app.middleware('http')
 async def privacy_and_limits(request:Request, call_next):
-    if request.url.path.startswith('/work/'):
+    body_limit=2_850_000 if request.url.path.startswith('/work/') else 30_000 if request.url.path in ('/quiz','/quiz/session') else None
+    if body_limit:
         body=bytearray()
         async for chunk in request.stream():
             body.extend(chunk)
-            if len(body)>2_850_000:
-                return JSONResponse(status_code=413,content={'detail':'Attachment request too large.'},headers={'Cache-Control':'no-store'})
+            if len(body)>body_limit:
+                return JSONResponse(status_code=413,content={'detail':'Request too large.'},headers={'Cache-Control':'no-store'})
         request._body=bytes(body)
     # Transient salted buckets protect password verification and invitation guessing.
     # No IPs are retained, logged, or included in evaluation data.
@@ -270,3 +273,79 @@ async def review_work(value:attached_work.Review,x_learning_token:str=Header(def
         raise HTTPException(503,'Feedback is unavailable. Your draft is still on this page; try again later.')
     attachment_access(value,user,x_learning_token)
     return {'feedback':text}
+
+
+class QuizAction(BaseModel):
+    action:Literal['hint','answer','next']
+    answer:str=Field(default='',max_length=4000)
+    reasoning:str=Field(default='',max_length=2000)
+
+
+def owned_quiz(token,user):
+    try:s=quizzes.get(token)
+    except KeyError:raise HTTPException(404,'Quiz expired. Start a new quiz.')
+    if s.owner_id!=user['id']:raise HTTPException(403,'This quiz belongs to another account.')
+    classroom=active_class(s.class_id,user) if s.class_id else s.context
+    return s,classroom
+
+@app.post('/quiz')
+async def start_quiz(value:Start,x_learning_token:str=Header(default=''),user=Depends(accounts.current_user)):
+    classroom=learning_context(value,user)
+    attachment_access(value,user,x_learning_token)
+    if not value.consent:raise HTTPException(400,'Agree to AI processing of quiz answers and reasoning first.')
+    starter_plan(classroom['course'],value.topic_id)
+    reserve_ai()
+    course={**classroom['course'],'grade':classroom['grade'],'exam_year':classroom['exam_year']}
+    requested=value.topic.strip() or next(t['label'] for t in course['topics'] if t['id']==value.topic_id)
+    try:plan=await run_in_threadpool(quiz.make_quiz,requested,value.band,course)
+    except Exception:raise HTTPException(503,'Quiz generation is unavailable. Your usual practice is still available.')
+    with store.lock:
+        classroom=learning_context(value,user)
+        attachment_access(value,user,x_learning_token)
+        try:token=quizzes.create(user['id'],value.class_id,classroom,plan,value.band)
+        except ValueError as error:raise HTTPException(503,str(error))
+        return {'token':token,**quiz.visible(quizzes.get(token),classroom['max_hints'])}
+
+@app.get('/quiz/session')
+def get_quiz(x_learning_token:str=Header(default=''),user=Depends(accounts.current_user)):
+    with store.lock:
+        s,c=owned_quiz(x_learning_token,user)
+        return quiz.visible(s,c['max_hints'])
+
+@app.post('/quiz/session')
+async def quiz_action(value:QuizAction,x_learning_token:str=Header(default=''),user=Depends(accounts.current_user)):
+    with store.lock:
+        s,c=owned_quiz(x_learning_token,user)
+        if s.inflight:raise HTTPException(409,'Please wait for your feedback.')
+        if s.index>=len(s.plan):raise HTTPException(409,'This quiz is complete.')
+        if value.action=='hint':
+            if s.answered or s.hints>=c['max_hints']:raise HTTPException(409,'No more hints are available for this question.')
+            s.hints+=1
+            return quiz.visible(s,c['max_hints'])
+        if value.action=='next':
+            if not s.answered:raise HTTPException(409,'Attempt this question and explain your reasoning first.')
+            s.index+=1;s.hints=0;s.answered=False
+            return quiz.visible(s,c['max_hints'])
+        if s.answered:raise HTTPException(409,'Feedback has already been provided. Try the next question.')
+        if not value.answer.strip() or not value.reasoning.strip():raise HTTPException(400,'Add your answer and explain your thinking. “I’m unsure because…” is enough.')
+        reserve_ai();s.inflight=True
+        question=s.plan[s.index]
+    try:
+        text=await run_in_threadpool(quiz.feedback,question,value.answer,value.reasoning,s.band)
+        if not text.strip():raise ValueError('Empty feedback')
+        with store.lock:
+            s,c=owned_quiz(x_learning_token,user)
+            s.answered=True;s.support.append(s.hints>0)
+            return {**quiz.visible(s,c['max_hints']),'feedback':text}
+    except HTTPException:raise
+    except Exception:raise HTTPException(503,'Feedback is unavailable. Your answer is still on this page; try again.')
+    finally:
+        with store.lock:s.inflight=False
+
+@app.delete('/quiz/session')
+def delete_quiz(x_learning_token:str=Header(default=''),user=Depends(accounts.current_user)):
+    with store.lock:
+        s=quizzes.sessions.get(x_learning_token)
+        if s and s.owner_id!=user['id']:raise HTTPException(403,'This quiz belongs to another account.')
+        quizzes.sessions.pop(x_learning_token,None)
+    return {'deleted':True}

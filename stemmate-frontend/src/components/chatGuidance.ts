@@ -19,3 +19,9 @@ export function replyLabel(stage?:Lesson['stage'],clarifying=false){
  if(!stage)return 'What are you working on?';
  return stage==='feedback'?'Your reflection (optional)':'Your thinking';
 }
+
+// Only explicit quiz requests are commands; ordinary questions containing “quiz” remain questions.
+export function quizRequest(text:string):string|null{
+ const match=text.trim().match(/^(?:(?:can|could|would) you\s+)?(?:please\s+)?(?:quiz me|give me a quiz|start (?:a )?quiz|(?:i want|i would like|i’d like|i'd like) a quiz)(?:\s+(?:on|about|in)\s+(.+?))?[.!?]*$/i);
+ return match?(match[1]??'').replace(/[.!?]+$/,'').trim():null;
+}

@@ -1,7 +1,8 @@
 import {lazy,Suspense,useId,useRef,useState} from 'react';
 import {request,type Lesson,type Classroom,type User} from '../api/stemmateApi';
-import {needsClarification,nextPrompt,replyLabel,withClarification} from './chatGuidance';
+import {needsClarification,nextPrompt,replyLabel,withClarification,quizRequest} from './chatGuidance';
 import VoiceTools from './VoiceTools';
+const QuizPractice=lazy(()=>import('./QuizPractice'));
 const AttachedWork=lazy(()=>import('./AttachWork'));
 const VisualExplorer=lazy(()=>import('./ExploreVisually'));
 const MathContent=lazy(()=>import('./MessageContent'));
@@ -10,13 +11,14 @@ const labels:Record<string,string>={attempt:'Let’s try together',explain:'Tell
 export default function Chat({classroom,user,independent=false,active=true}:{classroom:Classroom;user:User;independent?:boolean;active?:boolean}){
  const id=useId(),pending=useRef(false),heading=useRef<HTMLHeadingElement>(null),input=useRef<HTMLTextAreaElement>(null),errorRef=useRef<HTMLParagraphElement>(null);
  const [topic,setTopic]=useState(''),[topicId,setTopicId]=useState(classroom.course.topics[0].id),[band,setBand]=useState('secondary');
+ const [quizOpen,setQuizOpen]=useState(false),[quizTopic,setQuizTopic]=useState('');
  const [firstQuestion,setFirstQuestion]=useState(''),[clarifying,setClarifying]=useState(false),[helpAsking,setHelpAsking]=useState(false);
  const [mode,setMode]=useState('guided'),[token,setToken]=useState(''),[lesson,setLesson]=useState<Lesson|null>(null);
  const [work,setWork]=useState(''),[notes,setNotes]=useState<{label:string;text:string}[]>([]),[answer,setAnswer]=useState(''),[example,setExample]=useState('');
  const [attachOpen,setAttachOpen]=useState(false),[attachVisited,setAttachVisited]=useState(false),[visualOpen,setVisualOpen]=useState(false),[visualVisited,setVisualVisited]=useState(false),[revision,setRevision]=useState(0);
  const panel=useRef<HTMLDivElement>(null),attachButton=useRef<HTMLButtonElement>(null),more=useRef<HTMLDetailsElement>(null);
  const [source,setSource]=useState(''),[notice,setNotice]=useState(''),[error,setError]=useState(''),[busy,setBusy]=useState(false),[consent,setConsent]=useState(false);
- const started=Boolean(lesson||answer),independentCheck=lesson?.stage==='independent',complete=lesson?.stage==='complete',blocked=busy||classroom.paused||!active;
+ const started=Boolean(lesson||answer),independentCheck=lesson?.stage==='independent',complete=lesson?.stage==='complete',blocked=busy||classroom.paused||!active||quizOpen;
  const prompt=lesson?.stage==='apply'?lesson.application:independentCheck?lesson.independent:lesson?.challenge;
  function focusReply(){requestAnimationFrame(()=>input.current?.focus());}
  async function run(task:()=>Promise<void>,allowPaused=false){if(pending.current||(!allowPaused&&(classroom.paused||!active)))return;pending.current=true;setBusy(true);setError('');setNotice('');try{await task();requestAnimationFrame(()=>heading.current?.focus());}catch(e){setError(e instanceof Error?e.message:'Please try again.');requestAnimationFrame(()=>errorRef.current?.focus());}finally{pending.current=false;setBusy(false);}}
@@ -30,7 +32,8 @@ export default function Chat({classroom,user,independent=false,active=true}:{cla
   }
   setTopic(question);setClarifying(false);setHelpAsking(false);
  });}
- function submit(){if(lesson){act('continue');return;}if(clarifying){begin(withClarification(firstQuestion,topic));return;}
+ function openQuiz(value=''){if(independentCheck||blocked)return;setQuizTopic(value);setQuizOpen(true);if(more.current)more.current.open=false;}
+ function submit(){const command=quizRequest(lesson?work:topic);if(command!==null&&!independentCheck){openQuiz(command);return;}if(lesson){act('continue');return;}if(clarifying){begin(withClarification(firstQuestion,topic));return;}
   if(needsClarification(topic)){setFirstQuestion(topic);setTopic('');setClarifying(true);setHelpAsking(false);setNotice('');focusReply();return;}
   begin(topic);
  }
@@ -42,11 +45,11 @@ export default function Chat({classroom,user,independent=false,active=true}:{cla
   requestAnimationFrame(()=>{panel.current?.focus();panel.current?.scrollIntoView({block:'start'});});
  }
  function hint(){if(lesson?.stage==='explain'){act('hint');return;}setMode('guided');setNotice(lesson?'Share a first idea below—even “I’m stuck”. Then I can offer a small hint.':'Send a question first. We’ll start with your idea and take it one hint at a time.');focusReply();}
- return <section className="chat-workspace" aria-label="STEM thinking chat">
+ return <>{quizOpen&&<Suspense fallback={<p role="status">Opening quiz practice…</p>}><QuizPractice classroom={classroom} topicId={topicId} band={band} initialTopic={quizTopic} learningToken={token} active={active} onClose={()=>{setQuizOpen(false);focusReply();}}/></Suspense>}<section hidden={quizOpen} className="chat-workspace" aria-label="STEM thinking chat">
  <div className="chat-topbar"><div><span className="eyebrow">{independent?'Independent practice':classroom.name}</span><h2 ref={heading} tabIndex={-1}>{lesson?labels[lesson.stage]:'What are you working on?'}</h2></div>{(started||clarifying)&&<button className="secondary" disabled={busy} onClick={reset}>New chat</button>}</div>
  {!independentCheck&&(attachVisited||visualVisited)&&<div ref={panel} tabIndex={-1}>
  {attachVisited&&<div hidden={!attachOpen}><Suspense fallback={<p role="status">Opening your work…</p>}><AttachedWork key={revision} classId={classroom.id} learningToken={token} disabled={blocked||!attachOpen} onClose={()=>{setAttachOpen(false);attachButton.current?.focus();}}/></Suspense></div>}
- {visualVisited&&<div hidden={!visualOpen} className="visual-container"><Suspense fallback={<p role="status">Opening visual activities…</p>}><VisualExplorer key={revision} subject={classroom.course.subject} paused={classroom.paused} active={active&&visualOpen} onClose={()=>{setVisualOpen(false);more.current?.querySelector('summary')?.focus();}}/></Suspense></div>}
+ {visualVisited&&<div hidden={!visualOpen} className="visual-container"><Suspense fallback={<p role="status">Opening visual activities…</p>}><VisualExplorer key={revision} subject={classroom.course.subject} paused={classroom.paused} active={active&&!quizOpen&&visualOpen} onClose={()=>{setVisualOpen(false);more.current?.querySelector('summary')?.focus();}}/></Suspense></div>}
  </div>}
  <div className="chat-conversation" aria-label="Conversation">
  {!started&&!clarifying&&<div className="chat-welcome"><span className="chat-emblem" aria-hidden="true">SM</span><h3>Start wherever you are.</h3><p>A question, a first idea, or “I’m stuck” is enough.</p>
@@ -79,20 +82,21 @@ export default function Chat({classroom,user,independent=false,active=true}:{cla
  {!complete&&!(answer&&!lesson)&&<form onSubmit={e=>{e.preventDefault();submit();}}>
  <label className="composer-label" htmlFor={`${id}-message`}>{replyLabel(lesson?.stage,clarifying)}</label>
  <div className="message-entry"><textarea ref={input} id={`${id}-message`} value={lesson?work:topic} maxLength={lesson?4000:clarifying?1000:2000} disabled={blocked} required={Boolean((lesson&&lesson.stage!=='feedback')||clarifying)} onChange={e=>lesson?setWork(e.target.value):setTopic(e.target.value)} placeholder={lesson?'A first step or a question is enough.':clarifying?'For example: I’m not sure which operation to use.':'Type your question or tell me what feels confusing…'}/><button disabled={blocked||Boolean(lesson&&lesson.stage!=='feedback'&&!work.trim())||(clarifying&&!topic.trim())}>{busy?'One moment…':independentCheck?'Compare my attempt':lesson?.stage==='apply'?'Try the next one on my own':lesson?.stage==='feedback'?'Continue':lesson?'Send my thinking':'Send'}</button></div>
- <VoiceTools key={String(active)+String(busy)+(lesson?.stage??mode)} allowDictation={classroom.voice_input_enabled} disabled={blocked} readText={lesson?`${prompt??''} ${nextPrompt(lesson.stage)}`:clarifying?'Which part feels tricky?':'What are you working on?'} onTranscript={text=>lesson?setWork(v=>`${v}${v?' ':''}${text}`.slice(0,4000)):setTopic(v=>`${v}${v?' ':''}${text}`.slice(0,clarifying?1000:2000))}/>
+ <VoiceTools key={String(active&&!quizOpen)+String(busy)+(lesson?.stage??mode)} allowDictation={classroom.voice_input_enabled} disabled={blocked} readText={lesson?`${prompt??''} ${nextPrompt(lesson.stage)}`:clarifying?'Which part feels tricky?':'What are you working on?'} onTranscript={text=>lesson?setWork(v=>`${v}${v?' ':''}${text}`.slice(0,4000)):setTopic(v=>`${v}${v?' ':''}${text}`.slice(0,clarifying?1000:2000))}/>
  </form>}
  <details ref={more} className="chat-more"><summary>More options</summary>
  <div className="more-content">
+ <button disabled={blocked||independentCheck} onClick={()=>openQuiz()}>Quiz me</button>
  <button disabled={blocked||independentCheck} onClick={()=>showPanel('visual')}>Explore visually</button>
  {lesson&&['explain','feedback','apply'].includes(lesson.stage)&&<button disabled={blocked} onClick={()=>{if(more.current)more.current.open=false;act('example');}}>Show a similar example</button>}
  {lesson&&!independentCheck&&!complete&&<button disabled={blocked} onClick={()=>{if(more.current)more.current.open=false;setNotice('What rule supports your step? Do the units and assumptions fit? Try checking a different case. This is a self-check, not an AI assessment.');focusReply();}}>Check my reasoning</button>}
  <details><summary>Topic and privacy</summary><label htmlFor={`${id}-topic`}>Practice topic</label><select id={`${id}-topic`} value={topicId} disabled={started||blocked} onChange={e=>setTopicId(e.target.value)}>{classroom.course.topics.map(t=><option key={t.id} value={t.id}>{t.label}</option>)}</select>
  {classroom.evaluation_enabled&&user.role==='learner'&&<label className="check"><input type="checkbox" checked={consent} disabled={started||blocked} onChange={e=>setConsent(e.target.checked)}/>Optionally share activity counts with my teacher. No written answers.</label>}
- <p>Questions and your clarification go to AI. Chat attempts stay on this device. Attach work asks permission separately. Copy work before refreshing; practice sessions expire after one hour. {independent?'No teacher reports; microphone dictation is off.':'Microphone dictation may use your browser’s speech service.'}</p><p>{classroom.course.safety_notice}</p><p>{classroom.course.coverage_notice}</p></details>
+ <p>Questions and your clarification go to AI. Chat attempts stay on this device. Quiz answers and attached work ask permission separately. Copy work before refreshing; practice sessions expire after one hour. {independent?'No teacher reports; microphone dictation is off.':'Microphone dictation may use your browser’s speech service.'}</p><p>{classroom.course.safety_notice}</p><p>{classroom.course.coverage_notice}</p></details>
  {!independentCheck&&<details><summary>Past papers</summary><p>{classroom.course.pathway} {classroom.course.qualification} · syllabus {classroom.course.code}. Check year, tier and question number.</p><a href={classroom.course.pathway==='Namibia'?'https://nied.edu.na/documents/questionpapers/':'https://www.cambridgeinternational.org/resource-centre/'} target="_blank" rel="noreferrer">Open official paper resources (new tab)</a><p>Choose Attach work to practise a question or PDF page. We don’t search a paper library. Supplied criteria are not authenticated; AI feedback is not official grading.</p></details>}
  </div></details>
  {busy&&<p role="status" className="chat-small">One moment…</p>}
  {error&&<p role="alert" tabIndex={-1} ref={errorRef} className="error">{error}</p>}
  <p className="chat-small">AI can make mistakes. Keep personal details out of questions and uploads.</p>
- </div></section>;
+ </div></section></>;
 }

@@ -24,7 +24,7 @@ class ClassroomTests(unittest.TestCase):
         self.addCleanup(self.tmp.cleanup)
         patch.dict(os.environ,{'STEMMATE_ACCOUNTS_DB':str(Path(self.tmp.name)/'accounts.sqlite3'),'STEMMATE_TEACHER_INVITE':INVITE}).start()
         self.addCleanup(patch.stopall)
-        main.store=LearningStore();main.ai_calls.clear();main.auth_attempts.clear()
+        main.store=LearningStore();main.quizzes=main.quiz.QuizStore();main.ai_calls.clear();main.auth_attempts.clear()
         self.client=TestClient(main.app)
         self.teacher=self.register('teacher','teacher')
         self.learner=self.register('learner')
@@ -58,6 +58,70 @@ class ClassroomTests(unittest.TestCase):
     def policy(self,room=None,teacher=None,**changes):
         data={'max_hints':3,'paused':False,'evaluation_enabled':False,'voice_input_enabled':True,**changes}
         return self.client.put(f"/classes/{(room or self.room)['id']}/policy",headers=teacher or self.teacher,json=data)
+
+    def quiz_start(self,**changes):
+        plan=[{'question':f'Question {i}: explain a safe equation step.', 'hints':['Think of balance.','Use inverse operations.','Try subtracting.'],'reasoning':f'PRIVATE_REFERENCE_{i}'} for i in range(3)]
+        with patch.object(main.quiz,'make_quiz',return_value=plan):
+            return self.client.post('/quiz',headers=self.learner,json={'class_id':self.room['id'],'topic_id':'linear','consent':True,**changes})
+
+    def test_quiz_one_question_feedback_gates_and_privacy(self):
+        self.assertEqual(self.client.post('/quiz',json={'topic_id':'linear'}).status_code,401)
+        self.assertEqual(self.quiz_start(consent=False).status_code,400)
+        r=self.quiz_start();self.assertEqual(r.status_code,200,r.text)
+        token=r.json()['token'];headers={**self.learner,'X-Learning-Token':token}
+        self.assertNotIn('PRIVATE_REFERENCE',r.text);self.assertNotIn('Question 1:',r.text)
+        self.assertEqual(self.client.get('/quiz/session',headers={**self.teacher,'X-Learning-Token':token}).status_code,403)
+        self.assertEqual(self.client.post('/quiz/session',headers=headers,json={'action':'next'}).status_code,409)
+        self.assertEqual(self.client.post('/quiz/session',headers=headers,json={'action':'answer','answer':'4'}).status_code,400)
+        hint=self.client.post('/quiz/session',headers=headers,json={'action':'hint'})
+        self.assertEqual(hint.json()['hints'],['Think of balance.'])
+        with patch.object(main.quiz,'feedback',return_value='Check the operation and explain why it preserves equality.'):
+            for i in range(3):
+                r=self.client.post('/quiz/session',headers=headers,json={'action':'answer','answer':'PRIVATE_LEARNER_WORK','reasoning':'PRIVATE_LEARNER_REASON'})
+                self.assertEqual(r.status_code,200,r.text);self.assertTrue(r.json()['answered'])
+                self.assertEqual(r.headers['cache-control'],'no-store')
+                self.assertNotIn('PRIVATE_REFERENCE',r.text)
+                self.assertEqual(self.client.post('/quiz/session',headers=headers,json={'action':'hint'}).status_code,409)
+                self.assertEqual(self.client.post('/quiz/session',headers=headers,json={'action':'answer','answer':'x','reasoning':'y'}).status_code,409)
+                r=self.client.post('/quiz/session',headers=headers,json={'action':'next'})
+        self.assertTrue(r.json()['complete']);self.assertEqual(r.json()['reviewed'],3);self.assertEqual(r.json()['supported'],1)
+        self.assertEqual(r.json()['question'],'');self.assertNotIn('score',r.json())
+        self.assertNotIn('PRIVATE_LEARNER',repr(main.quizzes.sessions))
+        self.policy(paused=True)
+        self.assertEqual(self.client.get('/quiz/session',headers=headers).status_code,503)
+        self.assertEqual(self.client.delete('/quiz/session',headers=headers).status_code,200)
+        self.assertEqual(self.client.get('/quiz/session',headers=headers).status_code,404)
+
+    def test_quiz_failure_limits_expiry_and_independent_guard(self):
+        self.assertEqual(self.client.post('/quiz',headers=self.learner,content=b'x'*30001).status_code,413)
+        self.policy(max_hints=0)
+        r=self.quiz_start();token=r.json()['token'];headers={**self.learner,'X-Learning-Token':token}
+        self.assertEqual(self.client.post('/quiz/session',headers=headers,json={'action':'hint'}).status_code,409)
+        with patch.object(main.quiz,'feedback',side_effect=RuntimeError('SECRET_PROVIDER_ERROR')):
+            r=self.client.post('/quiz/session',headers=headers,json={'action':'answer','answer':'x','reasoning':'y'})
+        self.assertEqual(r.status_code,503);self.assertNotIn('SECRET_PROVIDER',r.text)
+        self.assertFalse(main.quizzes.get(token).answered);self.assertFalse(main.quizzes.get(token).inflight)
+        main.quizzes.get(token).expires=0
+        self.assertEqual(self.client.get('/quiz/session',headers=headers).status_code,404)
+        self.start()
+        for _ in range(4):self.action()
+        with patch.object(main.quiz,'make_quiz') as provider:
+            r=self.client.post('/quiz',headers=self.headers,json={'class_id':self.room['id'],'topic_id':'linear','consent':True})
+        self.assertEqual(r.status_code,409);provider.assert_not_called()
+
+    def test_quiz_plan_rejects_incomplete_or_duplicate_questions(self):
+        question={'question':'Explain why an equation stays balanced.','hints':['a','b','c'],'reasoning':'Apply the same operation to both sides.'}
+        for questions in ([question],[question]*3,[{**question,'question':str(i),'reasoning':' '} for i in range(3)]):
+            with patch.object(main.quiz,'reply',return_value=json.dumps({'questions':questions})):
+                with self.assertRaises(ValueError):main.quiz.make_quiz('equations','secondary',{})
+
+    def test_quiz_generation_uses_authoritative_course_and_style(self):
+        r=self.quiz_start(course_id='made-up',band='primary',topic='Linear equations')
+        self.assertEqual(r.status_code,200)
+        with patch.object(main.quiz,'make_quiz',side_effect=RuntimeError('PRIVATE')) as provider:
+            r=self.client.post('/quiz',headers=self.learner,json={'class_id':self.room['id'],'topic_id':'linear','consent':True,'band':'primary','topic':'Equations'})
+        self.assertEqual(r.status_code,503);self.assertNotIn('PRIVATE',r.text)
+        self.assertEqual(provider.call_args.args[1],'primary');self.assertEqual(provider.call_args.args[2]['id'],self.room['course_id'])
 
     def test_private_attachment_guards_and_no_storage(self):
         from modules import attached_work

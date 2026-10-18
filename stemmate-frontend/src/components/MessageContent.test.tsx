@@ -27,3 +27,7 @@ assert.match(alternate, /katex-display/);
 assert.match(alternate, /<ol>/);
 assert.match(render(String.raw`$\nabla f \neq \nu$`), /<math/);
 assert.match(render(String.raw`\(\nu\)`), /<math/);
+
+const spacedCurrency=render('A total of N $ 28. A notebook costs N $ 5 more. Solve $3(p+5)+2p=28$.');
+assert.equal((spacedCurrency.match(/<math/g)??[]).length,1);
+assert.match(spacedCurrency,/N\$ 28/);
