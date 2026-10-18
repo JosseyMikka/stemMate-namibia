@@ -71,19 +71,19 @@ class ClassroomTests(unittest.TestCase):
         token=r.json()['token'];headers={**self.learner,'X-Learning-Token':token}
         self.assertNotIn('PRIVATE_REFERENCE',r.text);self.assertNotIn('Question 1:',r.text)
         self.assertEqual(self.client.get('/quiz/session',headers={**self.teacher,'X-Learning-Token':token}).status_code,403)
-        self.assertEqual(self.client.post('/quiz/session',headers=headers,json={'action':'next'}).status_code,409)
-        self.assertEqual(self.client.post('/quiz/session',headers=headers,json={'action':'answer','answer':'4'}).status_code,400)
-        hint=self.client.post('/quiz/session',headers=headers,json={'action':'hint'})
+        self.assertEqual(self.client.post('/quiz/session',headers=headers,json={'action':'next','number':1}).status_code,409)
+        self.assertEqual(self.client.post('/quiz/session',headers=headers,json={'action':'answer','number':1,'answer':'4'}).status_code,400)
+        hint=self.client.post('/quiz/session',headers=headers,json={'action':'hint','number':1})
         self.assertEqual(hint.json()['hints'],['Think of balance.'])
         with patch.object(main.quiz,'feedback',return_value='Check the operation and explain why it preserves equality.'):
             for i in range(3):
-                r=self.client.post('/quiz/session',headers=headers,json={'action':'answer','answer':'PRIVATE_LEARNER_WORK','reasoning':'PRIVATE_LEARNER_REASON'})
+                r=self.client.post('/quiz/session',headers=headers,json={'action':'answer','number':i+1,'answer':'PRIVATE_LEARNER_WORK','reasoning':'PRIVATE_LEARNER_REASON'})
                 self.assertEqual(r.status_code,200,r.text);self.assertTrue(r.json()['answered'])
                 self.assertEqual(r.headers['cache-control'],'no-store')
                 self.assertNotIn('PRIVATE_REFERENCE',r.text)
-                self.assertEqual(self.client.post('/quiz/session',headers=headers,json={'action':'hint'}).status_code,409)
-                self.assertEqual(self.client.post('/quiz/session',headers=headers,json={'action':'answer','answer':'x','reasoning':'y'}).status_code,409)
-                r=self.client.post('/quiz/session',headers=headers,json={'action':'next'})
+                self.assertEqual(self.client.post('/quiz/session',headers=headers,json={'action':'hint','number':i+1}).status_code,409)
+                self.assertEqual(self.client.post('/quiz/session',headers=headers,json={'action':'answer','number':i+1,'answer':'x','reasoning':'y'}).status_code,200)
+                r=self.client.post('/quiz/session',headers=headers,json={'action':'next','number':i+1})
         self.assertTrue(r.json()['complete']);self.assertEqual(r.json()['reviewed'],3);self.assertEqual(r.json()['supported'],1)
         self.assertEqual(r.json()['question'],'');self.assertNotIn('score',r.json())
         self.assertNotIn('PRIVATE_LEARNER',repr(main.quizzes.sessions))
@@ -92,15 +92,67 @@ class ClassroomTests(unittest.TestCase):
         self.assertEqual(self.client.delete('/quiz/session',headers=headers).status_code,200)
         self.assertEqual(self.client.get('/quiz/session',headers=headers).status_code,404)
 
+    def test_quiz_retry_after_lost_response_does_not_double_count_or_skip(self):
+        token=self.quiz_start().json()['token'];headers={**self.learner,'X-Learning-Token':token}
+        with patch.object(main.quiz,'feedback',return_value='Check your reasoning.'):
+            body={'action':'answer','number':1,'answer':'4','reasoning':'I used inverse operations.'}
+            self.assertEqual(self.client.post('/quiz/session',headers=headers,json=body).status_code,200)
+            # Simulate delivery failure: the browser must safely retry the same question.
+            retry=self.client.post('/quiz/session',headers=headers,json=body)
+            self.assertEqual(retry.status_code,200,retry.text)
+            self.assertEqual(retry.json()['reviewed'],1)
+            first_next=self.client.post('/quiz/session',headers=headers,json={'action':'next','number':1})
+            retry_next=self.client.post('/quiz/session',headers=headers,json={'action':'next','number':1})
+            self.assertEqual(first_next.json()['number'],2)
+            self.assertEqual(retry_next.status_code,200,retry_next.text)
+            self.assertEqual(retry_next.json()['number'],2)
+            stale=self.client.post('/quiz/session',headers=headers,json=body)
+            self.assertEqual(stale.status_code,409)
+
+    def test_quiz_hint_retry_preserves_progress_and_teacher_limit(self):
+        self.policy(max_hints=2)
+        token=self.quiz_start().json()['token'];headers={**self.learner,'X-Learning-Token':token}
+        for seen,expected in [(0,1),(0,1),(1,2),(1,2)]:
+            r=self.client.post('/quiz/session',headers=headers,json={'action':'hint','number':1,'hints_seen':seen})
+            self.assertEqual(r.status_code,200,r.text);self.assertEqual(r.json()['hints_used'],expected)
+        self.assertEqual(self.client.post('/quiz/session',headers=headers,json={'action':'hint','number':1,'hints_seen':2}).status_code,409)
+        self.assertEqual(self.client.post('/quiz/session',headers=headers,json={'action':'hint','number':1,'hints_seen':3}).status_code,409)
+
+    def test_quiz_feedback_inflight_and_policy_recheck(self):
+        from concurrent.futures import ThreadPoolExecutor
+        from threading import Event
+        started=Event();release=Event()
+        token=self.quiz_start().json()['token'];headers={**self.learner,'X-Learning-Token':token}
+        def slow_feedback(*_):
+            started.set();release.wait(5);return 'Check your reasoning.'
+        with patch.object(main.quiz,'feedback',side_effect=slow_feedback),ThreadPoolExecutor() as pool:
+            future=pool.submit(self.client.post,'/quiz/session',headers=headers,json={'action':'answer','number':1,'answer':'4','reasoning':'PRIVATE_REPLY'})
+            try:
+                self.assertTrue(started.wait(3))
+                for action in ['answer','hint','next']:
+                    r=self.client.post('/quiz/session',headers=headers,json={'action':action,'number':1,'answer':'4','reasoning':'x'})
+                    self.assertEqual(r.status_code,409,r.text)
+                self.policy(paused=True)
+            finally:release.set()
+            self.assertEqual(future.result(timeout=5).status_code,503)
+        session=main.quizzes.get(token)
+        self.assertFalse(session.inflight);self.assertFalse(session.answered);self.assertEqual(session.support,[])
+        self.assertNotIn('PRIVATE_REPLY',repr(session))
+        self.assertEqual(self.client.delete('/quiz/session',headers={**self.teacher,'X-Learning-Token':token}).status_code,403)
+        self.assertEqual(self.client.delete('/quiz/session',headers=headers).status_code,200)
+
     def test_quiz_failure_limits_expiry_and_independent_guard(self):
         self.assertEqual(self.client.post('/quiz',headers=self.learner,content=b'x'*30001).status_code,413)
         self.policy(max_hints=0)
         r=self.quiz_start();token=r.json()['token'];headers={**self.learner,'X-Learning-Token':token}
-        self.assertEqual(self.client.post('/quiz/session',headers=headers,json={'action':'hint'}).status_code,409)
+        self.assertEqual(self.client.post('/quiz/session',headers=headers,json={'action':'hint','number':1}).status_code,409)
         with patch.object(main.quiz,'feedback',side_effect=RuntimeError('SECRET_PROVIDER_ERROR')):
-            r=self.client.post('/quiz/session',headers=headers,json={'action':'answer','answer':'x','reasoning':'y'})
+            r=self.client.post('/quiz/session',headers=headers,json={'action':'answer','number':1,'answer':'x','reasoning':'y'})
         self.assertEqual(r.status_code,503);self.assertNotIn('SECRET_PROVIDER',r.text)
         self.assertFalse(main.quizzes.get(token).answered);self.assertFalse(main.quizzes.get(token).inflight)
+        with patch.object(main.quiz,'feedback',return_value='Try checking your operation.'):
+            retry=self.client.post('/quiz/session',headers=headers,json={'action':'answer','number':1,'answer':'x','reasoning':'y'})
+        self.assertEqual(retry.status_code,200,retry.text);self.assertEqual(retry.json()['reviewed'],1)
         main.quizzes.get(token).expires=0
         self.assertEqual(self.client.get('/quiz/session',headers=headers).status_code,404)
         self.start()
@@ -114,6 +166,14 @@ class ClassroomTests(unittest.TestCase):
         for questions in ([question],[question]*3,[{**question,'question':str(i),'reasoning':' '} for i in range(3)]):
             with patch.object(main.quiz,'reply',return_value=json.dumps({'questions':questions})):
                 with self.assertRaises(ValueError):main.quiz.make_quiz('equations','secondary',{})
+
+    def test_quiz_feedback_contract_has_no_extra_generated_question(self):
+        question={'question':'Solve 2x=8','reasoning':'Divide by 2 to get x=4'}
+        with patch.object(main.quiz,'reply',return_value=json.dumps({'supported':'Your division preserves equality.','correction':'','check':'2 times 4 is 8.'})):
+            result=main.quiz.feedback(question,'4','I divided by 2','secondary')
+        self.assertIn('Your reasoning',result);self.assertIn('A check',result);self.assertNotIn('A step to revisit',result)
+        with patch.object(main.quiz,'reply',return_value=json.dumps({'supported':'a','check':'b','next_question':'An uncounted new problem'})):
+            with self.assertRaises(ValueError):main.quiz.feedback(question,'4','I divided by 2','secondary')
 
     def test_quiz_generation_uses_authoritative_course_and_style(self):
         r=self.quiz_start(course_id='made-up',band='primary',topic='Linear equations')

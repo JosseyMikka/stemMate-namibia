@@ -1,4 +1,4 @@
-const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
+const API_URL = import.meta.env?.VITE_API_URL ?? 'http://localhost:8000';
 let authToken: string | null = null;
 export function setAuthToken(token: string | null) {authToken = token;}
 export interface User {id: number; username: string; role: 'teacher' | 'learner'}
@@ -12,9 +12,9 @@ export interface Lesson {
   independent?: string; application_explanation?: string;
   independent_explanation?: string; direct_explanation?: string; similar_example?:string; content_source?: string;
 }
-export async function request<T>(path: string, method = 'GET', body?: unknown, _key?: string, token?: string): Promise<T> {
+export async function request<T>(path: string, method = 'GET', body?: unknown, _key?: string, token?: string, signal?: AbortSignal): Promise<T> {
   const response = await fetch(`${API_URL}${path}`, {
-    method, headers: {'Content-Type':'application/json', ...(authToken ? {'Authorization':`Bearer ${authToken}`} : {}), ...(token ? {'X-Learning-Token':token} : {})},
+    method, signal, headers: {'Content-Type':'application/json', ...(authToken ? {'Authorization':`Bearer ${authToken}`} : {}), ...(token ? {'X-Learning-Token':token} : {})},
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   if (!response.ok) {

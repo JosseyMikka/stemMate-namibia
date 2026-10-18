@@ -1,5 +1,6 @@
 import {useEffect,useId,useRef,useState} from 'react';
-import {request,type Classroom} from '../api/stemmateApi';
+import {type Classroom} from '../api/stemmateApi';
+import {quizApi} from '../api/quizTransport';
 import MessageContent from './MessageContent';
 import VoiceTools from './VoiceTools';
 interface Quiz {token?:string;complete:boolean;number:number;total:number;question:string;hints:string[];answered:boolean;hints_used:number;max_hints:number;reviewed:number;supported:number;feedback?:string}
@@ -9,10 +10,10 @@ export default function QuizPractice({classroom,topicId,band,initialTopic,learni
  const [answer,setAnswer]=useState(''),[reason,setReason]=useState(''),[reflection,setReflection]=useState(''),[notes,setNotes]=useState<string[]>([]),[busy,setBusy]=useState(false),[error,setError]=useState('');
  useEffect(()=>{title.current?.focus();},[]);
  const blocked=busy||!active||classroom.paused;
- async function run(task:()=>Promise<void>){if(pending.current)return;pending.current=true;setBusy(true);setError('');try{await task();requestAnimationFrame(()=>title.current?.focus());}catch(e){setError(e instanceof Error?e.message:'Please try again.');requestAnimationFrame(()=>errorRef.current?.focus());}finally{pending.current=false;setBusy(false);}}
- function start(){if(blocked||!consent)return;void run(async()=>{const r=await request<Quiz>('/quiz','POST',{class_id:classroom.id,course_id:classroom.course_id,grade:classroom.grade,exam_year:classroom.exam_year,topic_id:topicId,topic,band,consent},undefined,learningToken);setToken(r.token!);setQuiz(r);});}
- function act(action:'hint'|'answer'|'next'){if(blocked)return;void run(async()=>{const r=await request<Quiz>('/quiz/session','POST',{action,...(action==='answer'?{answer,reasoning:reason}:{})},undefined,token);if(action==='next'){setNotes(n=>[...n,reflection]);setAnswer('');setReason('');setReflection('');}setQuiz(r);});}
- function leave(restart=false){void run(async()=>{if(token)await request('/quiz/session','DELETE',undefined,undefined,token).catch(()=>undefined);setToken('');setQuiz(null);setAnswer('');setReason('');setReflection('');setNotes([]);setConsent(false);if(!restart)onClose();});}
+ async function run(task:()=>Promise<void>){if(pending.current)return;pending.current=true;setBusy(true);setError('');try{await task();requestAnimationFrame(()=>title.current?.focus());}catch(e){const message=e instanceof Error?e.message:'The connection was interrupted.';setError(message+' Your writing is still here.'+(message.toLowerCase().includes('expired')?' Copy it before returning to chat to start a new quiz.':' You can retry, or return to chat.'));requestAnimationFrame(()=>errorRef.current?.focus());}finally{pending.current=false;setBusy(false);}}
+ function start(){if(blocked||!consent)return;void run(async()=>{const r=await quizApi<Quiz>('/quiz','POST',{class_id:classroom.id,course_id:classroom.course_id,grade:classroom.grade,exam_year:classroom.exam_year,topic_id:topicId,topic,band,consent},learningToken);setToken(r.token!);setQuiz(r);});}
+ function act(action:'hint'|'answer'|'next'){if(blocked)return;void run(async()=>{const r=await quizApi<Quiz>('/quiz/session','POST',{action,number:quiz!.number,hints_seen:quiz!.hints_used,...(action==='answer'?{answer,reasoning:reason}:{})},token);if(action==='next'){setNotes(n=>[...n,reflection]);setAnswer('');setReason('');setReflection('');}setQuiz(r);});}
+ function leave(restart=false){void run(async()=>{if(token)await quizApi('/quiz/session','DELETE',undefined,token,3000).catch(()=>undefined);setToken('');setQuiz(null);setAnswer('');setReason('');setReflection('');setNotes([]);setConsent(false);if(!restart)onClose();});}
  return <section className="chat-workspace" aria-label="Quiz practice">
  <div className="chat-topbar"><div><span className="eyebrow">{classroom.course.subject_label} · Grade {classroom.grade} · {classroom.course.pathway} {classroom.course.qualification}</span><h2 ref={title} tabIndex={-1}>{quiz?.complete?'What will you revisit?':'Quiz me'}</h2></div><button className="secondary" disabled={busy} onClick={()=>leave()}>Back to chat</button></div>
  {!quiz&&<div className="chat-bubble tutor-bubble"><p>Three questions, one at a time. Explain your answer, then we’ll look at the reasoning.</p>

@@ -276,6 +276,8 @@ async def review_work(value:attached_work.Review,x_learning_token:str=Header(def
 
 
 class QuizAction(BaseModel):
+    number:int=Field(ge=1,le=3)
+    hints_seen:int=Field(default=0,ge=0,le=3)
     action:Literal['hint','answer','next']
     answer:str=Field(default='',max_length=4000)
     reasoning:str=Field(default='',max_length=2000)
@@ -317,16 +319,25 @@ async def quiz_action(value:QuizAction,x_learning_token:str=Header(default=''),u
     with store.lock:
         s,c=owned_quiz(x_learning_token,user)
         if s.inflight:raise HTTPException(409,'Please wait for your feedback.')
+        # A delivered Next request may lose its response. Repeating it returns
+        # the current question instead of advancing a second time.
+        if value.action=='next' and value.number==s.index and s.index>0:
+            return quiz.visible(s,c['max_hints'])
+        if value.number!=s.index+1:raise HTTPException(409,'This response belongs to an earlier question. Return to the current question.')
         if s.index>=len(s.plan):raise HTTPException(409,'This quiz is complete.')
         if value.action=='hint':
-            if s.answered or s.hints>=c['max_hints']:raise HTTPException(409,'No more hints are available for this question.')
+            if s.answered:raise HTTPException(409,'No more hints are available for this question.')
+            if value.hints_seen<s.hints:return quiz.visible(s,c['max_hints'])
+            if value.hints_seen>s.hints:raise HTTPException(409,'Hint state changed. Return to the current question.')
+            if s.hints>=c['max_hints']:raise HTTPException(409,'No more hints are available for this question.')
             s.hints+=1
             return quiz.visible(s,c['max_hints'])
         if value.action=='next':
             if not s.answered:raise HTTPException(409,'Attempt this question and explain your reasoning first.')
             s.index+=1;s.hints=0;s.answered=False
             return quiz.visible(s,c['max_hints'])
-        if s.answered:raise HTTPException(409,'Feedback has already been provided. Try the next question.')
+        # Recompute a lost feedback response from the resubmitted text; do not
+        # cache private answers/feedback or count the question twice.
         if not value.answer.strip() or not value.reasoning.strip():raise HTTPException(400,'Add your answer and explain your thinking. “I’m unsure because…” is enough.')
         reserve_ai();s.inflight=True
         question=s.plan[s.index]
@@ -335,7 +346,8 @@ async def quiz_action(value:QuizAction,x_learning_token:str=Header(default=''),u
         if not text.strip():raise ValueError('Empty feedback')
         with store.lock:
             s,c=owned_quiz(x_learning_token,user)
-            s.answered=True;s.support.append(s.hints>0)
+            if not s.answered:s.support.append(s.hints>0)
+            s.answered=True
             return {**quiz.visible(s,c['max_hints']),'feedback':text}
     except HTTPException:raise
     except Exception:raise HTTPException(503,'Feedback is unavailable. Your answer is still on this page; try again.')
