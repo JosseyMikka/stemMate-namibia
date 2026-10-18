@@ -62,13 +62,13 @@ def make_plan(topic, band, course=None, topic_id=None):
     raw = model_reply(topic, band, '''Return ONLY a JSON object with these string fields:
 challenge, explanation, application, application_explanation, independent,
 independent_explanation, and hints (array of exactly 3 short strings).
-Challenge: a question to predict or attempt, never an answer or worked solution.
+Challenge: a single short conversational question to predict or attempt, never an answer or worked solution. Start from the learner's stated difficulty and any clarification, without diagnosing ability or inventing personal facts. Do not require prompt-writing jargon or long instructions.
 Hints: progressively reveal a concept, a strategy, then a first step; never give
 its final answer. Explanation: a worked solution with reasoning for the challenge.
 Application: a NEW problem applying the same concept in a changed context.
 Independent: a DIFFERENT new problem testing transfer, without hints or answers.
-Keep mathematical scope at the class qualification; simplify wording for the reading support preference, not the curriculum. Primary: one small concrete step,
-no hazardous activities. Secondary: manageable steps. Senior: deeper reasoning.
+Keep mathematical scope at the class qualification; simplify wording for the reading support preference, not the curriculum. Primary: use short sentences and one small concrete step,
+no hazardous activities. Secondary: manageable steps. Senior: deeper reasoning. Keep all prompts concise and ask one thing at a time. Use the chosen reading support without lowering the qualification or patronising the learner.
 If unsafe or outside STEM, supply a safe STEM alternative. Note limitations in the
 explanation when the curriculum excerpts do not support curriculum claims.''', course, topic_id)
     plan = LessonPlan.model_validate_json(raw).model_dump()

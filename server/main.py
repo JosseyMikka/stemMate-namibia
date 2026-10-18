@@ -206,7 +206,7 @@ def forget(x_learning_token:str=Header(default=''),user=Depends(accounts.current
 async def explain(value:Start,user=Depends(accounts.current_user)):
     classroom=learning_context(value,user)
     plan=starter_plan(classroom['course'],value.topic_id)
-    answer=plan['explanation']
+    answer=plan['challenge']+'\n\n'+plan['explanation']
     if value.topic.strip():
         reserve_ai()
         course={**classroom['course'],'exam_year':classroom['exam_year'],'grade':classroom['grade']}

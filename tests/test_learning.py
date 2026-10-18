@@ -242,6 +242,7 @@ class ClassroomTests(unittest.TestCase):
             self.assertEqual(connection.execute('SELECT COUNT(*) FROM activity_counts').fetchone()[0],0)
         direct=self.client.post('/explain',headers=self.learner,json={'class_id':self.room['id'],'topic_id':'linear'}).json()
         self.assertIn('x=4',direct['answer'])
+        self.assertIn(LESSONS['linear']['challenge'],direct['answer'])
         self.policy(paused=True)
         self.assertEqual(self.action().status_code,503)
         self.assertEqual(self.client.delete('/learning/session',headers=self.headers).status_code,200)
