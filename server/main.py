@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 # Local credentials stay in the ignored server file; deployment env wins.
 load_dotenv(Path(__file__).resolve().parent / ".env", override=False)
 import secrets
+import logging
 import hashlib
 from collections import deque
 from time import monotonic
@@ -300,7 +301,9 @@ async def start_quiz(value:Start,x_learning_token:str=Header(default=''),user=De
     course={**classroom['course'],'grade':classroom['grade'],'exam_year':classroom['exam_year']}
     requested=value.topic.strip() or next(t['label'] for t in course['topics'] if t['id']==value.topic_id)
     try:plan=await run_in_threadpool(quiz.make_quiz,requested,value.band,course)
-    except Exception:raise HTTPException(503,'Quiz generation is unavailable. Your usual practice is still available.')
+    except Exception as error:
+        logging.getLogger('stemmate.quiz').warning('Quiz generation failed: %s',type(error).__name__)
+        raise HTTPException(503,'Quiz generation is unavailable. Your usual practice is still available.')
     with store.lock:
         classroom=learning_context(value,user)
         attachment_access(value,user,x_learning_token)
@@ -350,7 +353,9 @@ async def quiz_action(value:QuizAction,x_learning_token:str=Header(default=''),u
             s.answered=True
             return {**quiz.visible(s,c['max_hints']),'feedback':text}
     except HTTPException:raise
-    except Exception:raise HTTPException(503,'Feedback is unavailable. Your answer is still on this page; try again.')
+    except Exception as error:
+        logging.getLogger('stemmate.quiz').warning('Quiz feedback failed: %s',type(error).__name__)
+        raise HTTPException(503,'Feedback is unavailable. Your answer is still on this page; try again.')
     finally:
         with store.lock:s.inflight=False
 

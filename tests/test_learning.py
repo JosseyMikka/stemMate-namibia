@@ -183,6 +183,38 @@ class ClassroomTests(unittest.TestCase):
         self.assertEqual(r.status_code,503);self.assertNotIn('PRIVATE',r.text)
         self.assertEqual(provider.call_args.args[1],'primary');self.assertEqual(provider.call_args.args[2]['id'],self.room['course_id'])
 
+    def test_grade10_biology_rejects_observed_advanced_osmotic_formula(self):
+        questions=[{'question':f'Item {i}: calculate using Ψ = –i C R T.','hints':['Concept','Strategy','Step'],'reasoning':'Use osmotic pressure.'} for i in range(3)]
+        with patch.object(main.quiz,'reply',return_value=json.dumps({'questions':questions})):
+            with self.assertRaises(ValueError):main.quiz.make_quiz('Osmosis','secondary',{'subject':'biology','grade':10})
+        for q in questions:q['question']=q['question'].replace('calculate using Ψ = –i C R T.','explain why water leaves when external water potential is lower.');q['reasoning']='Water moves down its water potential gradient.'
+        with patch.object(main.quiz,'reply',return_value=json.dumps({'questions':questions})):
+            self.assertEqual(len(main.quiz.make_quiz('Osmosis','secondary',{'subject':'biology','grade':10})),3)
+
+    def test_quiz_feedback_does_not_anchor_to_generated_reference(self):
+        question={'question':'An unspecified cell is placed in 0.5 M sucrose. Predict water movement.','reasoning':'UNTRUSTED_REFERENCE_ALWAYS_SHRINKS'}
+        with patch.object(main.quiz,'reply',return_value=json.dumps({'supported':'You identified missing information.','correction':'','check':'Relative water potential is unspecified.'})) as provider:
+            main.quiz.feedback(question,'Not determined','Cell sap water potential is missing.','secondary')
+        messages=provider.call_args.args[0]
+        self.assertNotIn('UNTRUSTED_REFERENCE',json.dumps(messages))
+        self.assertIn('Do not assume typical cell sap values',messages[0]['content'])
+
+    def test_quiz_subject_curriculum_matrix_routes_authoritative_context(self):
+        plan=[{'question':f'Explain safe example {i}.','hints':['Concept','Strategy','Step'],'reasoning':'Reference'} for i in range(3)]
+        for course in catalogue():
+            if course['subject']=='mathematics':continue
+            for grade in course['grades']:
+                with self.subTest(course=course['id'],grade=grade), patch.object(main.quiz,'make_quiz',return_value=plan) as provider:
+                    r=self.client.post('/quiz',headers=self.learner,json={'course_id':course['id'],'grade':grade,'exam_year':course['exam_years'][0],'topic_id':course['topics'][0]['id'],'consent':True,'topic':'A requested subject topic'})
+                    self.assertEqual(r.status_code,200,r.text)
+                    actual=provider.call_args.args[2]
+                    for key in ('id','subject','pathway','qualification','code','syllabus_subject'):
+                        self.assertEqual(actual[key],course[key])
+                    self.assertEqual(actual['grade'],grade)
+                    self.assertEqual(actual['exam_year'],course['exam_years'][0])
+                    self.client.delete('/quiz/session',headers={**self.learner,'X-Learning-Token':r.json()['token']})
+                    main.ai_calls.clear()
+
     def test_private_attachment_guards_and_no_storage(self):
         from modules import attached_work
         payload={'question':'Solve 2x+3=9','work':'2x=12, x=6','consent':True,'confirmed':True}
