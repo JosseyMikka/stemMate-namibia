@@ -31,3 +31,17 @@ assert.match(render(String.raw`\(\nu\)`), /<math/);
 const spacedCurrency=render('A total of N $ 28. A notebook costs N $ 5 more. Solve $3(p+5)+2p=28$.');
 assert.equal((spacedCurrency.match(/<math/g)??[]).length,1);
 assert.match(spacedCurrency,/N\$ 28/);
+
+
+// Model-generated bare display rows must not show spacing commands as learner text.
+for(const content of [String.raw`$$2x+3-3=11-3\\[2pt]\Rightarrow2x=8$$`,String.raw`\[2x+3-3=11-3\\[2pt]\Rightarrow2x=8\]`]){
+ const rows=render(content);
+ assert.match(rows,/katex-display/);
+ assert.doesNotMatch(rows,/katex-error/);
+ assert.match(rows,/begin\{aligned\}/);
+ const visible=rows.replace(/<annotation[^>]*>[\s\S]*?<\/annotation>/g,'');
+ assert.doesNotMatch(visible,/2pt/);
+}
+const aligned=render(String.raw`$$\begin{aligned}x&=2\\[2pt]y&=3\end{aligned}$$`);
+assert.doesNotMatch(aligned,/katex-error/);
+assert.equal((aligned.match(/begin\{aligned\}/g)??[]).length,1);
