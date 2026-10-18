@@ -20,3 +20,10 @@ console.log('Math, accessibility markup, malformed input and content safety chec
 const currency = render('A hire costs N$5 plus N$2 per hour. Solve $5+2h=15$.');
 assert.match(currency, /N\$5 plus N\$2 per hour/);
 assert.equal((currency.match(/<math/g)??[]).length, 1);
+
+const alternate = render(String.raw`Solve \(5x+7=27\).\n\n1. Subtract 7.\n2. Divide. \[\frac{20}{5}=4\]`);
+assert.match(alternate, /<math/);
+assert.match(alternate, /katex-display/);
+assert.match(alternate, /<ol>/);
+assert.match(render(String.raw`$\nabla f \neq \nu$`), /<math/);
+assert.match(render(String.raw`\(\nu\)`), /<math/);

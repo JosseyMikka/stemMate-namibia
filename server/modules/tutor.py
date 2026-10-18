@@ -49,7 +49,7 @@ def model_reply(topic, band, instructions, course=None, topic_id=None):
         raise ValueError('AI provider is not configured')
     from langchain_groq import ChatGroq
     context = reviewed_context(topic, course, topic_id)
-    model = ChatGroq(model_name=os.getenv('GROQ_MODEL', 'llama-3.3-70b-versatile'),
+    model = ChatGroq(model_name=os.getenv('GROQ_MODEL', 'openai/gpt-oss-120b'),
                      temperature=0.1, timeout=45, max_retries=1, max_tokens=4000)
     subject_safety = (course or {}).get('safety_notice', '')
     return model.invoke([
