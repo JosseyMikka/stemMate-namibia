@@ -45,3 +45,6 @@ Browser verified keyboard open/Escape, mouse opening and moving into the bubble,
 A new deterministic test checks Biology and Computing authored topics cannot be used with the other subject's courses across both curricula. Total backend tests: 74; frontend suites remain ten. This tests routing, not semantic correctness of generated AI output.
 
 Guidance: [W3C content on hover/focus](https://www.w3.org/WAI/WCAG22/Understanding/content-on-hover-or-focus.html) and [APG tooltip pattern](https://www.w3.org/WAI/ARIA/apg/patterns/tooltip/). These informed behavior and do not establish conformance.
+
+
+Release review, 18 October 2026: requests now have a 100-second browser deadline without automatic retries; timeout preserves inputs and the prior draft. A required model context-status field rejects detected subject/objective mismatches with a clarification response. Missing/invalid status is rejected. This model check is not a guarantee of semantic correctness, curriculum alignment or teacher review.

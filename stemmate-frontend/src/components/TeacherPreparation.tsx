@@ -1,5 +1,6 @@
 import {lazy,Suspense,useId,useRef,useState} from 'react';
-import {request,type Classroom,type Course} from '../api/stemmateApi';
+import {type Classroom,type Course} from '../api/stemmateApi';
+import {prepareTeachingDraft} from '../api/teacherPreparationTransport';
 import DisplayBoundary from './DisplayBoundary';
 import InlineHelp from './InlineHelp';
 const MessageContent=lazy(()=>import('./MessageContent'));
@@ -19,7 +20,7 @@ export default function TeacherPreparation({courses,classes,active}:{courses:Cou
  function edit(key:keyof Draft,text:string){setDraft(v=>v?{...v,[key]:text}:v);setReviewed(false);}
  async function generate(){
   if(pending.current||!active||!course)return;pending.current=true;setBusy(true);setError('');setReviewed(false);
-  try{const value=await request<Draft>('/teacher/preparation','POST',{course_id:course.id,grade,exam_year:year,mode,topic,objective,content,resources,minutes,consent});setDraft(value);setDirty(false);requestAnimationFrame(()=>resultRef.current?.focus());}
+  try{const value=await prepareTeachingDraft<Draft>({course_id:course.id,grade,exam_year:year,mode,topic,objective,content,resources,minutes,consent});setDraft(value);setDirty(false);requestAnimationFrame(()=>resultRef.current?.focus());}
   catch(e){setError(e instanceof TypeError?'Connection interrupted. Your writing is still here. Reconnect and try again.':e instanceof Error?e.message:'Please try again.');requestAnimationFrame(()=>errorRef.current?.focus());}
   finally{pending.current=false;setBusy(false);}
  }

@@ -829,6 +829,15 @@ class ClassroomTests(unittest.TestCase):
             self.assertEqual(self.client.post('/teacher/preparation',headers=self.teacher,json=self.preparation()).status_code,429)
             generate.assert_not_called()
 
+    def test_preparation_subject_clarification_does_not_return_a_draft(self):
+        with patch.object(main.teacher_planning,'generate',side_effect=main.teacher_planning.ContextMismatch('PRIVATE_MODEL_TEXT')):
+            response=self.client.post('/teacher/preparation',headers=self.teacher,json=self.preparation())
+            self.assertEqual(response.status_code,422)
+            self.assertIn('match the selected subject',response.json()['detail'])
+            self.assertNotIn('learner_draft',response.json())
+            self.assertNotIn('PRIVATE_MODEL_TEXT',response.text)
+            self.assertEqual(response.headers['cache-control'],'no-store')
+
     def test_preparation_rechecks_access_after_generation(self):
         from fastapi import HTTPException
         classroom=accounts.class_access(self.room['id'],{'id':1,'role':'teacher'},True)

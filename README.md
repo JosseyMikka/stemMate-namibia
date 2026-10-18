@@ -124,7 +124,9 @@ Production requires reviewed HTTPS origins, private persistent storage, backups/
 
 ## Sustainability and revenue — proposed, not implemented
 
-The application currently has no billing, paid plans, subscription enforcement or payment checkout.
+The application currently has no billing, paid plans, subscription enforcement or payment checkout. Billing remains deliberately unconfigured while the supplier is being set up; no billing details are collected. Any paid institutional pilot requires agreed supplier details, pricing, terms and the applicable procurement process.
+
+[MEIYSAC presentation, policy sources and pilot requests](docs/MEIYSAC-PRESENTATION-READINESS.md)
 
 The proposed starting model is school/organisation subscriptions with included, bounded AI usage, plus separately priced onboarding and teacher training. Sponsored access can fund learners who cannot pay. Optional individual teacher plans can be tested later. Keep a useful basic reasoning experience accessible; do not fund it through learner data sales or advertising to minors.
 

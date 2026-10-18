@@ -415,6 +415,8 @@ async def prepare_teaching(value:teacher_planning.Preparation,user=Depends(accou
     reserve_ai(user['id'])
     try:
         result=await run_in_threadpool(teacher_planning.generate,value,classroom)
+    except teacher_planning.ContextMismatch:
+        raise HTTPException(422,'Check that your topic and objective match the selected subject. Choose the appropriate subject or clarify the objective, then try again. Your previous draft has not been replaced.')
     except Exception:
         raise HTTPException(503,'Preparation is unavailable. Your writing is still on this page; try again later.')
     if value.class_id:
