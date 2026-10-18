@@ -2,6 +2,8 @@ import {lazy,Suspense,useId,useRef,useState} from 'react';
 import {request,type Lesson,type Classroom,type User} from '../api/stemmateApi';
 import {needsClarification,nextPrompt,replyLabel,withClarification,quizRequest,hintGuidance,showChallenge} from './chatGuidance';
 import VoiceTools from './VoiceTools';
+import SubjectBadge from './SubjectBadge';
+import {subjectStyle} from './subjectTheme';
 import {visualSuggestion,type VisualSelection} from './visualLinks';
 const QuizPractice=lazy(()=>import('./QuizPractice'));
 const AttachedWork=lazy(()=>import('./AttachWork'));
@@ -50,8 +52,8 @@ export default function Chat({classroom,user,independent=false,active=true}:{cla
   requestAnimationFrame(()=>{panel.current?.focus();panel.current?.scrollIntoView({block:'start'});});
  }
  function hint(){if(lesson?.stage==='explain'){act('hint');return;}setMode('guided');setNotice(lesson?'Share a first idea below—even “I’m stuck”. Then I can offer a small hint.':'Send a question first. We’ll start with your idea and take it one hint at a time.');focusReply();}
- return <>{quizOpen&&<Suspense fallback={<p role="status">Opening quiz practice…</p>}><QuizPractice classroom={classroom} topicId={topicId} band={band} initialTopic={quizTopic} learningToken={token} active={active} onClose={()=>{setQuizOpen(false);focusReply();}}/></Suspense>}<section hidden={quizOpen} className="chat-workspace" aria-label="STEM thinking chat">
- <div className="chat-topbar"><div><span className="eyebrow">{independent?'Independent practice':classroom.name}</span><h2 ref={heading} tabIndex={-1}>{lesson?labels[lesson.stage]:mode==='direct'?'Let’s explain it simply':'Let’s think it through'}</h2></div>{(started||clarifying)&&<button className="secondary" disabled={busy} onClick={reset}>New chat</button>}</div>
+ return <>{quizOpen&&<Suspense fallback={<p role="status">Opening quiz practice…</p>}><QuizPractice classroom={classroom} topicId={topicId} band={band} initialTopic={quizTopic} learningToken={token} active={active} onClose={()=>{setQuizOpen(false);focusReply();}}/></Suspense>}<section hidden={quizOpen} className="chat-workspace" style={subjectStyle(classroom.course.subject)} aria-label="STEM thinking chat">
+ <div className="chat-topbar"><div><span className="eyebrow">{!independent&&<><SubjectBadge subject={classroom.course.subject}/><br/></>}{independent?'Independent practice':classroom.name}</span><h2 ref={heading} tabIndex={-1}>{lesson?labels[lesson.stage]:mode==='direct'?'Let’s explain it simply':'Let’s think it through'}</h2></div>{(started||clarifying)&&<button className="secondary" disabled={busy} onClick={reset}>New chat</button>}</div>
  {!independentCheck&&(attachVisited||visualVisited)&&<div ref={panel} tabIndex={-1}>
  {attachVisited&&<div hidden={!attachOpen}><Suspense fallback={<p role="status">Opening your work…</p>}><AttachedWork key={revision} classId={classroom.id} learningToken={token} disabled={blocked||!attachOpen} onClose={()=>{setAttachOpen(false);if(more.current)more.current.open=true;attachButton.current?.focus();}}/></Suspense></div>}
  {visualVisited&&<div hidden={!visualOpen} className="visual-container"><Suspense fallback={<p role="status">Opening visual activities…</p>}><VisualExplorer key={revision} selection={visualSelection} onSelect={setVisualSelection} paused={classroom.paused} active={active&&!quizOpen&&visualOpen} onClose={()=>{setVisualOpen(false);if(visualTrigger.current?.isConnected)visualTrigger.current.focus();else more.current?.querySelector('summary')?.focus();}}/></Suspense></div>}

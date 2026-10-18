@@ -220,3 +220,11 @@ header > div, .class-card strong, .class-card span {min-width:0;max-width:100%;o
 .more-content .support-choice [role=group]{justify-content:flex-start}
 .chat-workspace button,.chat-workspace summary{touch-action:manipulation}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation:none!important;transition:none!important}}
+
+/* Subject accents identify context; controls and scientific diagram colours stay consistent. */
+.subject-badge{display:inline-flex;align-items:center;gap:8px;max-width:100%;padding:5px 12px;border:1px solid var(--subject-ink);border-radius:999px;background:var(--subject-wash);color:var(--subject-ink);font-size:14px;font-weight:700;line-height:1.5;letter-spacing:normal;text-transform:none;overflow-wrap:anywhere}
+.subject-symbol{font-family:system-ui,sans-serif;font-weight:750;flex-shrink:0}
+.chat-context:has(.subject-badge){display:flex;align-items:center;flex-wrap:wrap;gap:8px 12px}
+.chat-workspace .chat-topbar{border-top:3px solid var(--subject-ink);padding-top:14px}
+.chat-workspace .chat-emblem{background:var(--subject-ink);color:#fff}
+@media(forced-colors:active){.subject-badge{border-color:CanvasText;background:Canvas;color:CanvasText}.chat-workspace .chat-topbar{border-top-color:CanvasText}}
