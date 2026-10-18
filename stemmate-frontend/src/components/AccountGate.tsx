@@ -35,6 +35,6 @@ export default function AccountGate({onSignedIn}: {onSignedIn: (user: User) => v
         <button type="button" className="text-button" disabled={busy} onClick={()=>{setRegister(!register);setError('');setPassword('');setInvitation('');}}>{register ? 'I already have an account' : 'Create an account'}</button>
       </form>
       {error && <p ref={errorRef} tabIndex={-1} role="alert" className="error">{error}</p>}
-    </section><footer>Sign-in lasts up to eight hours. This browser keeps your sign-in in memory only; refresh requires signing in again. Ask your administrator for help if you forget your password. Starter practice does not need an AI provider, but this website needs a connection to the school server.</footer>
+    </section><footer>Sign-in lasts up to eight hours. This browser keeps your sign-in in memory only; refresh requires signing in again. Optional saved chat drafts can be reviewed after the same account signs back in; sign-out clears them. Ask your administrator for help if you forget your password. Starter practice does not need an AI provider, but this website needs a connection to the school server.</footer>
   </main>;
 }

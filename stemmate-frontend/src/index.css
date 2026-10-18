@@ -228,3 +228,8 @@ header > div, .class-card strong, .class-card span {min-width:0;max-width:100%;o
 .chat-workspace .chat-topbar{border-top:3px solid var(--subject-ink);padding-top:14px}
 .chat-workspace .chat-emblem{background:var(--subject-ink);color:#fff}
 @media(forced-colors:active){.subject-badge{border-color:CanvasText;background:Canvas;color:CanvasText}.chat-workspace .chat-topbar{border-top-color:CanvasText}}
+
+.draft-recovery{border:1px solid #617b6e;border-radius:10px;background:#fff;padding:10px 14px;margin-bottom:14px;font-size:14px}.draft-recovery>summary{min-height:44px;align-content:center;cursor:pointer}.draft-recovery textarea{font-size:16px}.draft-recovery section{border-top:1px solid #bdccdb;padding-top:8px}.sidebar-account .check{font-size:13px}.device-privacy p{line-height:1.5}
+
+/* Recovered notes remain unavailable during the active independent check. */
+.companion-shell:has(.chat-workspace[data-independent-check="true"]) .draft-recovery{display:none}

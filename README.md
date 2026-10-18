@@ -234,3 +234,7 @@ Choose **More options → Quiz me**, or type **Quiz me on …** (also “Can you
 Upper-grade Quiz me verification: [Grades 11–12, NSSCAS and Cambridge AS/A Level](docs/QUIZ-UPPER-GRADES-VERIFICATION.md). Computer Science is available under Computing; the route matrix distinguishes Namibia Computer Studies/Computer Science and Cambridge Computer Science.
 
 Relevant chat explanations now offer a small **Explore this visually** button for supported cell, molecule and enzyme-study topics. Authored labelled diagrams lead to prediction–observation–explanation models. [Scope and verification](docs/CONTEXTUAL-VISUALS.md).
+
+## Optional unfinished chat recovery
+
+Recovery is off by default. Device privacy offers a tab-only, 30-minute recovery copy for unfinished main-chat text. Refresh still requires sign-in; the same account can review/copy saved text. Sign-out/clear removes this tab’s copies even offline. Browser copies are unencrypted: leave recovery off on shared devices. This does not resume a lesson, save tokens or persist quizzes/uploads/project notebooks. See [privacy limits and verification](docs/DRAFT-RECOVERY.md).

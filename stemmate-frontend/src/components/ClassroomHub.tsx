@@ -2,6 +2,7 @@ import {useCallback, useEffect, useRef, useState} from 'react';
 import {request, type User, type Course, type Classroom} from '../api/stemmateApi';
 import TeacherControls from './TeacherControls';
 import Chat from './Chat';
+import DraftRecovery,{DraftPrivacy} from './DraftRecovery';
 import ProjectPathway from './ProjectPathway';
 import IndependentPractice from './IndependentPractice';
 import StoredWorkPrivacy from './StoredWorkPrivacy';
@@ -47,8 +48,9 @@ export default function ClassroomHub({user,onSignOut}: {user:User;onSignOut:()=>
   const selectedCourse=availableCourses.find(c=>c.id===courseId)??availableCourses.find(c=>c.id.replace(/-202[67]$/,'')===courseId.replace(/-202[67]$/,''))??availableCourses[0];
   const classroom=classes.find(c=>c.id===active);
   return <div className="shell companion-shell"><a className="skip-link" href="#main">Skip to activity</a>
-    <header className="companion-sidebar"><div className="brand"><span className="brand-icon">SM</span><span>STEMMate<small>STEM • Namibia and Cambridge</small></span></div><nav aria-label="Main navigation"><button className={view==='chat'?'selected':'secondary'} aria-pressed={view==='chat'} onClick={()=>{setView('chat');if(!classroom)setSolo(true);}}>Chat</button><button className={view==='tools'?'selected':'secondary'} aria-pressed={view==='tools'} onClick={()=>{setView('tools');setSolo(false);}}>{user.role==='teacher'?'Teacher tools':'My classes'}</button></nav><p className="sidebar-note">A little support.<br/>Your own thinking.</p><div className="sidebar-account"><span>{user.username} · {user.role}</span> <button className="secondary" disabled={busy} onClick={()=>void perform(async()=>{await request('/auth/logout','POST');onSignOut();})}>Sign out</button><details className="device-privacy"><summary>Device privacy</summary><button className="text-button" onClick={onSignOut}>Clear this device</button></details></div></header>
+    <header className="companion-sidebar"><div className="brand"><span className="brand-icon">SM</span><span>STEMMate<small>STEM • Namibia and Cambridge</small></span></div><nav aria-label="Main navigation"><button className={view==='chat'?'selected':'secondary'} aria-pressed={view==='chat'} onClick={()=>{setView('chat');if(!classroom)setSolo(true);}}>Chat</button><button className={view==='tools'?'selected':'secondary'} aria-pressed={view==='tools'} onClick={()=>{setView('tools');setSolo(false);}}>{user.role==='teacher'?'Teacher tools':'My classes'}</button></nav><p className="sidebar-note">A little support.<br/>Your own thinking.</p><div className="sidebar-account"><span>{user.username} · {user.role}</span> <button className="secondary" disabled={busy} onClick={()=>{void request('/auth/logout','POST').catch(()=>undefined);onSignOut();}}>Sign out</button><details className="device-privacy"><summary>Device privacy</summary><DraftPrivacy owner={user.id}/><button className="text-button" onClick={onSignOut}>Clear this device</button></details></div></header>
     <main id="main" tabIndex={-1}>
+      <DraftRecovery owner={user.id}/>
       <div hidden={view!=='chat'}>
         <div hidden={!solo}><IndependentPractice courses={courses} user={user} active={view==='chat'&&solo}/></div>{classroom&&<div hidden={solo}><p className="chat-context">Class activity · {classroom.name}</p><Chat key={classroom.id} classroom={classroom} user={user} active={view==='chat'&&!solo}/></div>}
         {!solo&&<button className="text-button" onClick={()=>setSolo(true)}>Practise independently instead</button>}

@@ -1,0 +1,14 @@
+import {useEffect,useState} from 'react';
+import {clearTabDrafts,enableDrafts,readDrafts,removeDraft} from './tabDrafts';
+export function DraftPrivacy({owner}:{owner:number}){
+ const [enabled,setEnabled]=useState(()=>readDrafts(owner).enabled),[error,setError]=useState('');
+ useEffect(()=>{const update=()=>setEnabled(readDrafts(owner).enabled);window.addEventListener('stemmate-drafts',update);return()=>window.removeEventListener('stemmate-drafts',update);},[owner]);
+ return <><label className="check"><input type="checkbox" checked={enabled} onChange={e=>{const choice=e.target.checked;if(enableDrafts(owner,choice)){setEnabled(choice);setError('');}else setError('This browser cannot save a recovery copy. Keep a separate copy of your writing.');}}/>Remember unfinished chat text in this tab for 30 minutes</label><p>Optional—leave off on shared devices. Sign in to the same account after refresh to review saved text. Sign out or Clear this device removes copies in this tab. This browser copy is not encrypted; someone with device/browser access may read it. Only the four latest chat drafts are kept. Quiz, project and attachment drafts are not included.</p>{enabled&&<button className="text-button" onClick={()=>clearTabDrafts()}>Forget drafts and turn recovery off</button>}{error&&<p role="alert">{error}</p>}</>;
+}
+export default function DraftRecovery({owner}:{owner:number}){
+ const [value,setValue]=useState(()=>readDrafts(owner));
+ useEffect(()=>{const update=()=>setValue(readDrafts(owner));window.addEventListener('stemmate-drafts',update);const timer=window.setInterval(update,60000);window.addEventListener('pageshow',update);document.addEventListener('visibilitychange',update);return()=>{window.removeEventListener('stemmate-drafts',update);window.removeEventListener('pageshow',update);document.removeEventListener('visibilitychange',update);window.clearInterval(timer);};},[owner]);
+ useEffect(()=>{if(!value.drafts.length)return;const timer=window.setTimeout(()=>setValue(readDrafts(owner)),Math.max(1,Math.min(...value.drafts.map(d=>d.expires))-Date.now()+1));return()=>window.clearTimeout(timer);},[owner,value]);
+ if(!value.drafts.length)return null;
+ return <details className="draft-recovery"><summary>Saved chat drafts in this tab ({value.drafts.length})</summary><p>Recovered text is a copy, not a resumed lesson. Copy it before starting the matching activity again. Nothing here is sent automatically. Drafts expire 30 minutes after their last edit; turning recovery off deletes them.</p>{value.drafts.map(d=><section key={d.id}><h3>{d.label}</h3><p>{d.stage}</p>{d.question&&<details><summary>Original question</summary><p className="learner-text">{d.question}</p></details>}<label>Saved text—select and copy<textarea readOnly value={d.text} onFocus={e=>e.currentTarget.select()}/></label><button className="text-button" onClick={()=>removeDraft(owner,d.id)}>Discard this draft</button></section>)}</details>;
+}

@@ -1,6 +1,8 @@
-import {lazy,Suspense,useId,useRef,useState} from 'react';
+import {lazy,Suspense,useEffect,useId,useRef,useState} from 'react';
 import {request,type Lesson,type Classroom,type User} from '../api/stemmateApi';
 import {needsClarification,nextPrompt,replyLabel,withClarification,quizRequest,hintGuidance,showChallenge} from './chatGuidance';
+import {DraftPrivacy} from './DraftRecovery';
+import {readDrafts,saveDraft} from './tabDrafts';
 import VoiceTools from './VoiceTools';
 import SubjectBadge from './SubjectBadge';
 import {subjectStyle} from './subjectTheme';
@@ -26,9 +28,26 @@ export default function Chat({classroom,user,independent=false,active=true}:{cla
  const started=Boolean(lesson||answer),independentCheck=lesson?.stage==='independent',complete=lesson?.stage==='complete',blocked=busy||classroom.paused||!active||quizOpen;
  const prompt=lesson?.stage==='apply'?lesson.application:independentCheck?lesson.independent:lesson?.challenge;
  const suggestion=!independentCheck&&(answer||example||lesson?.stage==='feedback'||complete)?visualSuggestion(topic||lesson?.challenge||'',answer||example||lesson?.explanation||'',classroom.course.subject):null;
+ const draftId=`chat:${classroom.id}:${classroom.course_id}:${classroom.grade}:${classroom.exam_year}`;
+ const draftText=complete||answer&&!lesson?'':lesson?work:topic;
+ const [draftEnabled,setDraftEnabled]=useState(()=>readDrafts(user.id).enabled);
+ const previousDraft=useRef({text:draftText,enabled:draftEnabled});
+ useEffect(()=>{const update=()=>setDraftEnabled(readDrafts(user.id).enabled);window.addEventListener('stemmate-drafts',update);return()=>window.removeEventListener('stemmate-drafts',update);},[user.id]);
+ const [draftNotice,setDraftNotice]=useState('');
+ useEffect(()=>{
+  if(previousDraft.current.text===draftText&&previousDraft.current.enabled===draftEnabled)return;
+  previousDraft.current={text:draftText,enabled:draftEnabled};
+  if(!draftEnabled)return;
+  const saved=saveDraft(user.id,{id:draftId,label:`${classroom.course.subject_label} · Grade ${classroom.grade} · ${classroom.course.pathway} ${classroom.course.qualification} · Exam ${classroom.exam_year}`,stage:lesson?labels[lesson.stage]:clarifying?'Question clarification':'Unsent question',question:lesson?(prompt??lesson.challenge):clarifying?firstQuestion:'',text:draftText});
+  if(!saved)queueMicrotask(()=>setDraftNotice('Recovery storage is unavailable. Your writing is still here; copy it before leaving.'));
+ },[draftText,draftEnabled,draftId,user.id,classroom.course.subject_label,classroom.grade,classroom.course.pathway,classroom.course.qualification,classroom.exam_year,lesson,prompt,clarifying,firstQuestion,complete,answer]);
+ useEffect(()=>{
+  const protect=(event:BeforeUnloadEvent)=>{if(draftText.trim()){event.preventDefault();event.returnValue='';}};
+  window.addEventListener('beforeunload',protect);return()=>window.removeEventListener('beforeunload',protect);
+ },[draftText]);
  function openSuggestedVisual(button:HTMLButtonElement){if(!suggestion||blocked||independentCheck)return;visualTrigger.current=button;setVisualSelection({...suggestion.selection,request:++visualRequest.current});setVisualVisited(true);setVisualOpen(true);setAttachOpen(false);if(more.current)more.current.open=false;requestAnimationFrame(()=>{panel.current?.focus();panel.current?.scrollIntoView({block:'start'});});}
  function focusReply(){requestAnimationFrame(()=>input.current?.focus());}
- async function run(task:()=>Promise<void>,allowPaused=false){if(pending.current||(!allowPaused&&(classroom.paused||!active)))return;pending.current=true;setBusy(true);setError('');setNotice('');try{await task();requestAnimationFrame(()=>heading.current?.focus());}catch(e){setError(e instanceof Error?e.message:'Please try again.');requestAnimationFrame(()=>errorRef.current?.focus());}finally{pending.current=false;setBusy(false);}}
+ async function run(task:()=>Promise<void>,allowPaused=false){if(pending.current||(!allowPaused&&(classroom.paused||!active)))return;pending.current=true;setBusy(true);setError('');setNotice('');try{await task();requestAnimationFrame(()=>heading.current?.focus());}catch(e){setError(e instanceof TypeError?'Connection interrupted. Your writing is still here. Reconnect and try again.':e instanceof Error?e.message:'Please try again.');requestAnimationFrame(()=>errorRef.current?.focus());}finally{pending.current=false;setBusy(false);}}
  const context={class_id:classroom.id,course_id:classroom.course_id,grade:classroom.grade,exam_year:classroom.exam_year,topic_id:topicId,band};
  function begin(question:string,choice=mode){void run(async()=>{
   if(choice==='direct'){const r=await request<{answer:string;content_source:string}>('/explain','POST',{...context,topic:question});setAnswer(r.answer);setSource(r.content_source);}
@@ -52,7 +71,7 @@ export default function Chat({classroom,user,independent=false,active=true}:{cla
   requestAnimationFrame(()=>{panel.current?.focus();panel.current?.scrollIntoView({block:'start'});});
  }
  function hint(){if(lesson?.stage==='explain'){act('hint');return;}setMode('guided');setNotice(lesson?'Share a first idea below—even “I’m stuck”. Then I can offer a small hint.':'Send a question first. We’ll start with your idea and take it one hint at a time.');focusReply();}
- return <>{quizOpen&&<Suspense fallback={<p role="status">Opening quiz practice…</p>}><QuizPractice classroom={classroom} topicId={topicId} band={band} initialTopic={quizTopic} learningToken={token} active={active} onClose={()=>{setQuizOpen(false);focusReply();}}/></Suspense>}<section hidden={quizOpen} className="chat-workspace" style={subjectStyle(classroom.course.subject)} aria-label="STEM thinking chat">
+ return <>{quizOpen&&<Suspense fallback={<p role="status">Opening quiz practice…</p>}><QuizPractice classroom={classroom} topicId={topicId} band={band} initialTopic={quizTopic} learningToken={token} active={active} onClose={()=>{setQuizOpen(false);focusReply();}}/></Suspense>}<section hidden={quizOpen} data-independent-check={active&&independentCheck?'true':undefined} className="chat-workspace" style={subjectStyle(classroom.course.subject)} aria-label="STEM thinking chat">
  <div className="chat-topbar"><div><span className="eyebrow">{!independent&&<><SubjectBadge subject={classroom.course.subject}/><br/></>}{independent?'Independent practice':classroom.name}</span><h2 ref={heading} tabIndex={-1}>{lesson?labels[lesson.stage]:mode==='direct'?'Let’s explain it simply':'Let’s think it through'}</h2></div>{(started||clarifying)&&<button className="secondary" disabled={busy} onClick={reset}>New chat</button>}</div>
  {!independentCheck&&(attachVisited||visualVisited)&&<div ref={panel} tabIndex={-1}>
  {attachVisited&&<div hidden={!attachOpen}><Suspense fallback={<p role="status">Opening your work…</p>}><AttachedWork key={revision} classId={classroom.id} learningToken={token} disabled={blocked||!attachOpen} onClose={()=>{setAttachOpen(false);if(more.current)more.current.open=true;attachButton.current?.focus();}}/></Suspense></div>}
@@ -96,9 +115,9 @@ export default function Chat({classroom,user,independent=false,active=true}:{cla
  <button disabled={blocked||independentCheck} onClick={()=>showPanel('visual')}>Explore visually</button>
  {lesson&&['explain','feedback','apply'].includes(lesson.stage)&&<button disabled={blocked} onClick={()=>{if(more.current)more.current.open=false;act('example');}}>Show a similar example</button>}
  {lesson&&!independentCheck&&!complete&&<button disabled={blocked} onClick={()=>{if(more.current)more.current.open=false;setNotice('What rule supports your step? Do the units and assumptions fit? Try checking a different case. This is a self-check, not an AI assessment.');focusReply();}}>Check my reasoning</button>}
- <details><summary>Topic and privacy</summary><label htmlFor={`${id}-topic`}>Practice topic</label><select id={`${id}-topic`} value={topicId} disabled={started||blocked} onChange={e=>setTopicId(e.target.value)}>{classroom.course.topics.map(t=><option key={t.id} value={t.id}>{t.label}</option>)}</select>
+ <details><summary>Topic and privacy</summary><DraftPrivacy owner={user.id}/><label htmlFor={`${id}-topic`}>Practice topic</label><select id={`${id}-topic`} value={topicId} disabled={started||blocked} onChange={e=>setTopicId(e.target.value)}>{classroom.course.topics.map(t=><option key={t.id} value={t.id}>{t.label}</option>)}</select>
  {classroom.evaluation_enabled&&user.role==='learner'&&<label className="check"><input type="checkbox" checked={consent} disabled={started||blocked} onChange={e=>setConsent(e.target.checked)}/>Optionally share activity counts with my teacher. No written answers.</label>}
- <p>Questions and your clarification go to AI. The provider has its own data retention rules. Chat attempts stay in this browser tab until you leave or refresh. Quiz answers and attached work ask permission separately. Copy work before refreshing; practice sessions expire after one hour. {independent?'No teacher reports; microphone dictation is off.':'Microphone dictation may use your browser’s speech service.'}</p><p><a href="https://console.groq.com/docs/your-data" target="_blank" rel="noreferrer">How the AI provider handles data (new tab)</a></p><p>{classroom.course.safety_notice}</p><p>{classroom.course.coverage_notice}</p></details>
+ <p>Questions and your clarification go to AI. The provider has its own data retention rules. Unsent chat text can be recovered after refresh only if tab recovery is enabled. Review saved drafts after signing in again. Other practice notes remain temporary. Quiz answers and attached work ask permission separately. Copy important work before leaving; practice sessions expire after one hour. {independent?'No teacher reports; microphone dictation is off.':'Microphone dictation may use your browser’s speech service.'}</p><p><a href="https://console.groq.com/docs/your-data" target="_blank" rel="noreferrer">How the AI provider handles data (new tab)</a></p><p>{classroom.course.safety_notice}</p><p>{classroom.course.coverage_notice}</p></details>
  {!independentCheck&&<details><summary>Past papers</summary><p>{classroom.course.pathway} {classroom.course.qualification} · syllabus {classroom.course.code}. Check year, tier and question number.</p><a href={classroom.course.pathway==='Namibia'?'https://nied.edu.na/documents/questionpapers/':'https://www.cambridgeinternational.org/resource-centre/'} target="_blank" rel="noreferrer">Open official paper resources (new tab)</a><p>Choose Attach work to practise a question or PDF page. We don’t search a paper library. Supplied criteria are not authenticated; AI feedback is not official grading.</p></details>}
  </div></details>
  {notice&&<p role="status" className="chat-coach">{notice}</p>}
@@ -109,6 +128,7 @@ export default function Chat({classroom,user,independent=false,active=true}:{cla
  <VoiceTools key={String(active&&!quizOpen)+String(busy)+(lesson?.stage??mode)} allowDictation={classroom.voice_input_enabled} disabled={blocked} readText={lesson?`${prompt??''} ${nextPrompt(lesson.stage)}`:clarifying?'Which part feels tricky?':'What are you working on?'} onTranscript={text=>lesson?setWork(v=>`${v}${v?' ':''}${text}`.slice(0,4000)):setTopic(v=>`${v}${v?' ':''}${text}`.slice(0,clarifying?1000:2000))}/>
  </form>}
 
+ {draftNotice&&<p role="status" className="chat-small">{draftNotice}</p>}
  {busy&&<p role="status" className="chat-small">One moment…</p>}
  {error&&<p role="alert" tabIndex={-1} ref={errorRef} className="error">{error}</p>}
  <p className="chat-small">AI can make mistakes. Keep personal details out of questions and uploads.</p>
