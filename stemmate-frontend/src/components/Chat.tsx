@@ -1,6 +1,7 @@
 import {lazy,Suspense,useId,useRef,useState} from 'react';
 import {request,type Lesson,type Classroom,type User} from '../api/stemmateApi';
 import VoiceTools from './VoiceTools';
+const VisualExplorer=lazy(()=>import('./ExploreVisually'));
 const MathContent=lazy(()=>import('./MessageContent'));
 function Message({content}:{content:string}){return <Suspense fallback={<p role="status">Loading learning material…</p>}><MathContent content={content}/></Suspense>;}
 const stages=['attempt','explain','feedback','apply','independent','complete'];
@@ -10,12 +11,14 @@ export default function Chat({classroom,user,independent=false,active=true}:{cla
  const [topic,setTopic]=useState(''),[topicId,setTopicId]=useState(classroom.course.topics[0].id),[band,setBand]=useState('secondary');
  const [mode,setMode]=useState('guided'),[token,setToken]=useState(''),[lesson,setLesson]=useState<Lesson|null>(null);
  const [work,setWork]=useState(''),[notes,setNotes]=useState<{label:string;text:string}[]>([]),[answer,setAnswer]=useState(''),[example,setExample]=useState('');
+ const [visualOpen,setVisualOpen]=useState(false),[visualRevision,setVisualRevision]=useState(0);
+ const visualHeading=useRef<HTMLDivElement>(null),visualButton=useRef<HTMLButtonElement>(null);
  const [source,setSource]=useState(''),[notice,setNotice]=useState(''),[error,setError]=useState(''),[busy,setBusy]=useState(false),[consent,setConsent]=useState(false);
  async function run(task:()=>Promise<void>){if(pending.current)return;pending.current=true;setBusy(true);setError('');setNotice('');try{await task();requestAnimationFrame(()=>heading.current?.focus());}catch(e){setError(e instanceof Error?e.message:'Please try again.');requestAnimationFrame(()=>errorRef.current?.focus());}finally{pending.current=false;setBusy(false);}}
  const context={class_id:classroom.id,course_id:classroom.course_id,grade:classroom.grade,exam_year:classroom.exam_year,topic_id:topicId,topic,band};
  function start(){void run(async()=>{if(mode==='direct'){const r=await request<{answer:string;content_source:string}>('/explain','POST',context);setAnswer(r.answer);setSource(r.content_source);}else{const r=await request<Lesson&{token:string}>('/learning','POST',{...context,consent:user.role==='learner'&&consent});setLesson(r);setToken(r.token);setSource(r.content_source??'original_starter');}});}
  function act(action:string){void run(async()=>{const r=await request<Lesson>('/learning/session','POST',{action,attempted:Boolean(work.trim())},undefined,token);if(action==='continue'){if(work.trim())setNotes(n=>[...n,{label:labels[lesson!.stage],text:work}]);setWork('');setAnswer('');setExample('');}if(r.direct_explanation)setAnswer(r.direct_explanation);if(r.similar_example)setExample(r.similar_example);setLesson(r);});}
- function reset(){void run(async()=>{if(token)await request('/learning/session','DELETE',undefined,undefined,token);setToken('');setLesson(null);setAnswer('');setExample('');setWork('');setNotes([]);setSource('');setTopic('');setMode('guided');});}
+ function reset(){void run(async()=>{if(token)await request('/learning/session','DELETE',undefined,undefined,token);setToken('');setLesson(null);setAnswer('');setExample('');setWork('');setNotes([]);setSource('');setTopic('');setMode('guided');setVisualOpen(false);setVisualRevision(n=>n+1);});}
  const started=Boolean(lesson||answer),independentCheck=lesson?.stage==='independent',complete=lesson?.stage==='complete';
  const prompt=lesson?.stage==='apply'?lesson.application:independentCheck?lesson.independent:lesson?.challenge;
  const blocked=busy||classroom.paused;
@@ -29,6 +32,7 @@ export default function Chat({classroom,user,independent=false,active=true}:{cla
  <details className="exam-practice"><summary>Exam practice and past papers</summary><p>Find an official paper for {classroom.course.syllabus_subject} · {classroom.course.pathway} {classroom.course.qualification} · syllabus {classroom.course.code}. Check the paper year, tier and syllabus version before practising.</p>
  <p><a href={classroom.course.pathway==='Namibia'?'https://nied.edu.na/documents/questionpapers/':'https://www.cambridgeinternational.org/resource-centre/'} target="_blank" rel="noreferrer">{classroom.course.pathway==='Namibia'?'Open NIED’s official past-paper links':'Open Cambridge’s official paper resources'} (new tab)</a></p>
  <p>STEMMate does not currently host or search a past-paper library. Some resources require school access. Open your paper separately, choose the closest topic in Topic and support, then type a question here. Try it yourself before asking for a hint. Use the official mark scheme after your attempt; AI explanations are not official marking guidance.</p><p>For exam rehearsal, work through the paper without STEMMate help first. Afterwards, bring the steps you found difficult to the reasoning chat. Paper uploads and automatic exam marking are not enabled.</p></details>
+ {!independentCheck&&<div ref={visualHeading} tabIndex={-1} hidden={!visualOpen} className="visual-container" id={`${id}-visual`}><Suspense fallback={<p role="status">Loading visual activities…</p>}><VisualExplorer key={visualRevision} subject={classroom.course.subject} paused={classroom.paused} active={active&&visualOpen} onClose={()=>{setVisualOpen(false);visualButton.current?.focus();}}/></Suspense></div>}
  <div className="chat-conversation" aria-label="Conversation">
  {!started&&<div className="chat-welcome"><span className="chat-emblem" aria-hidden="true">SM</span><h3>Your ideas come first.</h3><p>Ask a STEM question or start a practice activity. We’ll work through it one thought at a time.</p><p className="chat-small">Choose a topic in “Topic and support”. For science, use supplied data and paper models; practical work requires qualified supervision.</p></div>}
  {started&&topic&&!independentCheck&&<div className="chat-bubble learner-bubble"><strong>Your question</strong><p>{topic}</p></div>}
@@ -53,6 +57,7 @@ export default function Chat({classroom,user,independent=false,active=true}:{cla
  <button type="button" aria-pressed={mode==='direct'} className={mode==='direct'?'selected':''} disabled={blocked||independentCheck||complete||(!lesson&&started)} onClick={()=>lesson?act('direct'):setMode('direct')}>Explain simply</button>
  <button type="button" disabled={blocked||!lesson||!['explain','feedback','apply'].includes(lesson.stage)} onClick={()=>act('example')}>Similar example</button>
  <button type="button" disabled={blocked||!lesson||independentCheck||complete} onClick={()=>setNotice('Self-check your reasoning: What rule supports each step? Are your assumptions and units consistent? Can you test a different case or find a counterexample? Revise your response below. This is a reflection prompt, not an AI assessment.')}>Check my reasoning</button>
+ <button type="button" ref={visualButton} aria-expanded={visualOpen&&!independentCheck} aria-controls={independentCheck?undefined:`${id}-visual`} disabled={blocked||independentCheck} onClick={()=>{setVisualOpen(v=>!v);if(!visualOpen)requestAnimationFrame(()=>{visualHeading.current?.focus();visualHeading.current?.scrollIntoView({block:'start'});});}}>Explore visually</button>
  <button type="button" disabled={blocked||lesson?.stage!=='apply'||!work.trim()} onClick={()=>act('continue')}>Try on my own</button>
  </div>
  <p className="chat-small">{!started?(mode==='guided'?'Think with me: start with your idea, then get support.':'Direct explanation: accessible support, then explain it back.'):'Hints and examples unlock after an attempt. “Try on my own” unlocks after your application response.'}</p>
