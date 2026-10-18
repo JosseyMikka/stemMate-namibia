@@ -291,6 +291,14 @@ def owned_quiz(token,user):
     classroom=active_class(s.class_id,user) if s.class_id else s.context
     return s,classroom
 
+def quiz_failure(error,feedback=False):
+    # Never log provider payloads: they can contain learner text or credentials.
+    logging.getLogger('stemmate.quiz').warning('Quiz %s failed: %s','feedback' if feedback else 'generation',type(error).__name__)
+    if getattr(error,'status_code',None)==429:
+        draft='Your answer is still on this page.' if feedback else 'Your topic is still on this page.'
+        return HTTPException(429,'AI is temporarily at its limit. Please try again later. '+draft,headers={'Retry-After':'60'})
+    return HTTPException(503,'Feedback is unavailable. Your answer is still on this page; try again.' if feedback else 'Quiz generation is unavailable. Your usual practice is still available.')
+
 @app.post('/quiz')
 async def start_quiz(value:Start,x_learning_token:str=Header(default=''),user=Depends(accounts.current_user)):
     classroom=learning_context(value,user)
@@ -302,8 +310,7 @@ async def start_quiz(value:Start,x_learning_token:str=Header(default=''),user=De
     requested=value.topic.strip() or next(t['label'] for t in course['topics'] if t['id']==value.topic_id)
     try:plan=await run_in_threadpool(quiz.make_quiz,requested,value.band,course)
     except Exception as error:
-        logging.getLogger('stemmate.quiz').warning('Quiz generation failed: %s',type(error).__name__)
-        raise HTTPException(503,'Quiz generation is unavailable. Your usual practice is still available.')
+        raise quiz_failure(error)
     with store.lock:
         classroom=learning_context(value,user)
         attachment_access(value,user,x_learning_token)
@@ -354,8 +361,7 @@ async def quiz_action(value:QuizAction,x_learning_token:str=Header(default=''),u
             return {**quiz.visible(s,c['max_hints']),'feedback':text}
     except HTTPException:raise
     except Exception as error:
-        logging.getLogger('stemmate.quiz').warning('Quiz feedback failed: %s',type(error).__name__)
-        raise HTTPException(503,'Feedback is unavailable. Your answer is still on this page; try again.')
+        raise quiz_failure(error,feedback=True)
     finally:
         with store.lock:s.inflight=False
 

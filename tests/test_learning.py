@@ -215,6 +215,74 @@ class ClassroomTests(unittest.TestCase):
                     self.client.delete('/quiz/session',headers={**self.learner,'X-Learning-Token':r.json()['token']})
                     main.ai_calls.clear()
 
+    def test_quiz_rejects_hidden_dependencies_and_ordinary_level_kinetics(self):
+        plan=[{'question':f'Question {i}: explain conservation.','hints':['Concept','Strategy','Step'],'reasoning':'Reference'} for i in range(3)]
+        plan[2]['question']='Using the result from the previous question, calculate the mass.'
+        with self.assertRaises(ValueError):main.quiz.validate_plan(plan,{'subject':'chemistry','grade':12,'qualification':'A Level'})
+        plan[2]['question']='Based on the limiting reagent identified in Question 1, calculate the mass.'
+        with self.assertRaises(ValueError):main.quiz.validate_plan(plan,{'subject':'chemistry','grade':12,'qualification':'A Level'})
+        plan[2]['question']='Compare Michaelis-Menten kinetics and estimate Vmax.'
+        for grade in (11,12):
+            for qualification in ('NSSCO','IGCSE Extended'):
+                with self.subTest(grade=grade,qualification=qualification),self.assertRaises(ValueError):
+                    main.quiz.validate_plan(plan,{'subject':'biology','grade':grade,'qualification':qualification})
+        self.assertEqual(len(main.quiz.validate_plan(plan,{'subject':'biology','grade':12,'qualification':'A Level'})),3)
+
+    def test_quiz_provider_limit_is_explicit_and_preserves_progress(self):
+        class LimitError(Exception):status_code=429
+        with patch.object(main.quiz,'make_quiz',side_effect=LimitError('SECRET_PROVIDER_PAYLOAD')):
+            r=self.client.post('/quiz',headers=self.learner,json={'class_id':self.room['id'],'topic_id':'linear','consent':True})
+        self.assertEqual(r.status_code,429);self.assertEqual(r.headers['retry-after'],'60');self.assertNotIn('SECRET_PROVIDER_PAYLOAD',r.text)
+        started=self.quiz_start().json();headers={**self.learner,'X-Learning-Token':started['token']}
+        with patch.object(main.quiz,'feedback',side_effect=LimitError('SECRET_ANSWER')):
+            r=self.client.post('/quiz/session',headers=headers,json={'action':'answer','number':1,'answer':'4','reasoning':'I divided.'})
+        self.assertEqual(r.status_code,429);self.assertNotIn('SECRET_ANSWER',r.text)
+        state=self.client.get('/quiz/session',headers=headers).json()
+        self.assertEqual(state['number'],1);self.assertFalse(state['answered']);self.assertEqual(state['reviewed'],0)
+        with patch.object(main.quiz,'feedback',return_value='Check equality.'):
+            retry=self.client.post('/quiz/session',headers=headers,json={'action':'answer','number':1,'answer':'4','reasoning':'I divided.'})
+        self.assertEqual(retry.status_code,200);self.assertEqual(retry.json()['reviewed'],1)
+
+    def test_quiz_grades11_12_all_courses_full_workflow(self):
+        exercised=[]
+        for grade in (11,12):
+            for course in catalogue():
+                if grade not in course['grades'] or 2027 not in course['exam_years']:continue
+                with self.subTest(grade=grade,course=course['id']):
+                    # Deterministic provider fixtures test routing/state, not AI accuracy.
+                    questions=[{'question':f'{course["subject_label"]} reasoning question {n}', 'hints':['Concept','Strategy','First step'],'reasoning':f'PRIVATE_REFERENCE_{n}'} for n in range(1,4)]
+                    body={'course_id':course['id'],'grade':grade,'exam_year':2027,'topic_id':course['topics'][0]['id'],'consent':True,'band':'senior'}
+                    with patch.object(main.quiz,'make_quiz',return_value=questions) as provider:
+                        started=self.client.post('/quiz',headers=self.learner,json=body)
+                    self.assertEqual(started.status_code,200,started.text)
+                    context=provider.call_args.args[2]
+                    self.assertEqual(context['id'],course['id']);self.assertEqual(context['grade'],grade)
+                    self.assertEqual(context['subject'],course['subject']);self.assertEqual(context['qualification'],course['qualification'])
+                    self.assertEqual(provider.call_args.args[1],'senior')
+                    headers={**self.learner,'X-Learning-Token':started.json()['token']}
+                    self.assertNotIn('PRIVATE_REFERENCE',started.text)
+                    self.assertNotIn('question 2',started.text)
+                    for seen in range(3):
+                        hint=self.client.post('/quiz/session',headers=headers,json={'action':'hint','number':1,'hints_seen':seen})
+                        self.assertEqual(hint.status_code,200);self.assertEqual(hint.json()['hints_used'],seen+1)
+                    self.assertEqual(self.client.post('/quiz/session',headers=headers,json={'action':'hint','number':1,'hints_seen':3}).status_code,409)
+                    for number in range(1,4):
+                        self.assertEqual(self.client.post('/quiz/session',headers=headers,json={'action':'next','number':number}).status_code,409)
+                        with patch.object(main.quiz,'feedback',return_value='A deterministic formative feedback fixture.'):
+                            r=self.client.post('/quiz/session',headers=headers,json={'action':'answer','number':number,'answer':'PRIVATE_SYNTHETIC_ANSWER','reasoning':'PRIVATE_SYNTHETIC_REASON'})
+                        self.assertEqual(r.status_code,200,r.text);self.assertEqual(r.json()['reviewed'],number)
+                        self.assertNotIn('PRIVATE_REFERENCE',r.text)
+                        next_question=self.client.post('/quiz/session',headers=headers,json={'action':'next','number':number})
+                        self.assertEqual(next_question.status_code,200,next_question.text)
+                    recap=next_question.json()
+                    self.assertTrue(recap['complete']);self.assertEqual(recap['reviewed'],3);self.assertEqual(recap['supported'],1)
+                    self.assertNotIn('score',recap);self.assertNotIn('grade',recap)
+                    self.assertNotIn('PRIVATE_SYNTHETIC',repr(main.quizzes.get(started.json()['token'])))
+                    self.assertEqual(self.client.delete('/quiz/session',headers=headers).status_code,200)
+                    main.ai_calls.clear() # isolated test fixtures; no provider calls occur
+                    exercised.append((grade,course['id']))
+        self.assertEqual(len(exercised),54)
+
     def test_private_attachment_guards_and_no_storage(self):
         from modules import attached_work
         payload={'question':'Solve 2x+3=9','work':'2x=12, x=6','consent':True,'confirmed':True}
