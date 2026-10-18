@@ -197,3 +197,5 @@ header > div, .class-card strong, .class-card span {min-width:0;max-width:100%;o
 @media(max-width:800px){.companion-shell{grid-template-columns:1fr}.companion-sidebar{padding:14px 18px;gap:10px}.companion-sidebar nav{display:flex;flex-wrap:wrap}.companion-sidebar nav button{width:auto}.sidebar-note{display:none}.sidebar-account{margin:0;display:flex;align-items:center;flex-wrap:wrap;font-size:13px}.sidebar-account button{width:auto}.companion-shell>main{padding:18px}.chat-workspace{min-height:65dvh}.chat-welcome{margin:24px auto}.chat-composer{position:static}.chat-bubble{padding:16px}.message-entry{flex-wrap:wrap}.message-entry button{width:100%}.chat-topbar h2{font-size:20px}}
 
 .companion-sidebar .brand-icon{white-space:nowrap;flex-shrink:0;display:inline-grid;place-items:center;padding:8px;width:42px;height:42px;font-size:16px}
+
+.exam-practice{font-size:14px;margin-top:8px}.exam-practice[open]{background:#fff;border:1px solid #bccad9;border-radius:12px;padding:16px}

@@ -1,6 +1,7 @@
 import sys
 import os
 import types
+import tempfile
 import unittest
 from unittest.mock import MagicMock, patch
 from pathlib import Path
@@ -18,7 +19,8 @@ class RetrievalTests(unittest.TestCase):
         embeddings=types.ModuleType('modules.embeddings');embeddings.embeddings=object()
         loader=types.ModuleType('modules.load_vectorstore');loader.PERSIST_DIR='/test-only'
         modules={'langchain_groq':groq,'langchain_community':community,'langchain_community.vectorstores':vectors,'modules.embeddings':embeddings,'modules.load_vectorstore':loader}
-        with patch.dict(sys.modules,modules), patch.dict(os.environ,{'GROQ_API_KEY':'fictional-test-key'}):
+        with tempfile.TemporaryDirectory() as directory, patch.dict(sys.modules,modules), patch.dict(os.environ,{'GROQ_API_KEY':'fictional-test-key','STEMMATE_VECTORSTORE_DIR':directory}):
+            Path(directory,'chroma.sqlite3').touch()
             result=model_reply('quadratics','secondary','guide',{'id':'cam-igcse-extended','exam_year':2027,'subject':'mathematics','safety_notice':'TEST: paper only'},'quadratic')
         self.assertEqual(result,'A checked response')
         self.assertEqual(vectorstore.similarity_search.call_count,1)
@@ -40,3 +42,8 @@ class RetrievalTests(unittest.TestCase):
         with patch.dict(os.environ,{'GROQ_API_KEY':''}):
             with self.assertRaisesRegex(ValueError,'not configured'):
                 model_reply('linear equations','secondary','guide')
+
+    def test_missing_index_does_not_load_embeddings_or_claim_reviewed_material(self):
+        from modules.tutor import reviewed_context
+        with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ,{'STEMMATE_VECTORSTORE_DIR':directory}):
+            self.assertEqual(reviewed_context('equations',{'id':'na-nssco','exam_year':2027},'linear'),'')

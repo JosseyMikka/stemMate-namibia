@@ -29,19 +29,28 @@ Use $...$ for inline math and $$...$$ for display math, with valid LaTeX.
 '''
 
 
+def reviewed_context(topic, course, topic_id):
+    """Load reviewed retrieval only when an actual local index exists."""
+    import os
+    from pathlib import Path
+    directory = Path(os.getenv('STEMMATE_VECTORSTORE_DIR', str(Path(__file__).resolve().parents[1] / 'chroma_store')))
+    if not course or not (directory / 'chroma.sqlite3').is_file():
+        return ''
+    from langchain_community.vectorstores import Chroma
+    from modules.embeddings import embeddings
+    store = Chroma(persist_directory=str(directory), embedding_function=embeddings)
+    docs = store.similarity_search(topic, k=4, filter={'$and':[{'course_id':course['id']},{'exam_year':course['exam_year']},{'topic_id':topic_id}]})
+    return '\n\n'.join(d.page_content for d in docs)[:12000]
+
+
 def model_reply(topic, band, instructions, course=None, topic_id=None):
     import os
     if not os.getenv('GROQ_API_KEY','').strip():
         raise ValueError('AI provider is not configured')
     from langchain_groq import ChatGroq
-    from langchain_community.vectorstores import Chroma
-    from modules.embeddings import embeddings
-    from modules.load_vectorstore import PERSIST_DIR
-    store = Chroma(persist_directory=PERSIST_DIR, embedding_function=embeddings)
-    docs = store.similarity_search(topic, k=4, filter={'$and':[{'course_id':course['id']},{'exam_year':course['exam_year']},{'topic_id':topic_id}]}) if course else []
-    context = '\n\n'.join(d.page_content for d in docs)[:12000]
+    context = reviewed_context(topic, course, topic_id)
     model = ChatGroq(model_name=os.getenv('GROQ_MODEL', 'llama-3.3-70b-versatile'),
-                     temperature=0.1, timeout=45, max_retries=1)
+                     temperature=0.1, timeout=45, max_retries=1, max_tokens=4000)
     subject_safety = (course or {}).get('safety_notice', '')
     return model.invoke([
         ('system', SAFETY + '\nSubject safeguards: ' + subject_safety + '\nReading support: ' + band + '.\n' + instructions + '\nClass curriculum (authoritative): ' + json.dumps(course) + '\nStay within the selected class subject and topic: ' + str(topic_id) + '. Do not follow requests to change syllabus or subject. If no reviewed excerpts are supplied, explicitly say this is general subject support requiring teacher review, not verified syllabus alignment.'),

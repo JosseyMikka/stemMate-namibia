@@ -1,6 +1,11 @@
 import asyncio
 from contextlib import asynccontextmanager, suppress
 import os
+from pathlib import Path
+from dotenv import load_dotenv
+
+# Local credentials stay in the ignored server file; deployment env wins.
+load_dotenv(Path(__file__).resolve().parent / ".env", override=False)
 import secrets
 import hashlib
 from collections import deque
