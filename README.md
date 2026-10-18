@@ -54,13 +54,21 @@ AI drafts can contain incorrect science, worked hints in learner materials, weak
 
 [Teacher preparation](docs/TEACHER-PREPARATION.md) · [Projects](docs/PROJECT-PATHWAY.md) · [Workflow/UI review](docs/WORKFLOW-AND-UI-REVIEW.md)
 
+## How subjects stay separate
+
+The server validates course ID, qualification, grade and exam year. Biology and Computing have distinct topic lists and subject safeguards; an authored topic from one is rejected for the other. If reviewed retrieval is explicitly configured, document selection is restricted to course ID, exam year and topic, with no broad fallback. Teacher preparation uses the supplied objective and selected context, not a generic mixed-subject document store.
+
+AI is instructed to stay within that context, but generated text is not semantically guaranteed to obey or cover a syllabus correctly. Structured JSON and valid course choices do not certify factual accuracy, topic relevance or full curriculum alignment. Teacher-reviewed content and objective mapping remain necessary. No automatic claim of complete alignment is made.
+
 ## Privacy and accessibility
 
 - Keep personal details out of prompts and uploads. Provider processing/retention and school/research permission require review before real learner data.
 - Main-chat draft recovery is optional, off by default, tab-scoped and unencrypted, with a 30-minute expiry. Leave it off on shared devices. Sign-out clears copies in this tab; it does not erase other tabs, exports or backups.
 - Teacher preparation, quiz drafts, attachments and unshared project notebooks are not covered by chat recovery. Copy/export important work before changing context or leaving.
 - Project snapshots are stored only through explicit sharing and governed by class access/retention controls. Optional activity counts are not learning scores or research consent.
-- The interface targets WCAG 2.2 AA with labelled inputs, keyboard access, visible focus, non-colour labels, responsive layout, text alternatives and MathML/KaTeX equations. Full conformance is not certified; representative learner and assistive-technology testing remains necessary.
+- Supplemental teacher help uses small “?” buttons: hover, keyboard focus/Escape, or tap. Optional notes, class prefilling and detailed privacy explanations are disclosed when needed; essential processing permission and review/storage notices stay visible.
+
+The interface targets WCAG 2.2 AA with labelled inputs, keyboard access, visible focus, non-colour labels, responsive layout, text alternatives and MathML/KaTeX equations. Full conformance is not certified; representative learner and assistive-technology testing remains necessary.
 
 [Draft recovery](docs/DRAFT-RECOVERY.md) · [Accessibility](docs/ACCESSIBILITY-AND-CLASSROOM-DESIGN.md) · [Release/privacy gate](docs/RELEASE-AND-PRIVACY.md)
 
@@ -68,7 +76,7 @@ AI drafts can contain incorrect science, worked hints in learner materials, weak
 
 The catalogue covers selected 2026/2027 pathways, not complete verified syllabuses. There are 14 authored starter topics; custom AI questions are general support requiring review. Practical assessments and school teaching remain outside the app's coverage claims.
 
-Current teacher-tools branch verification: 73 backend tests, ten frontend suites, build/typecheck/lint and GitHub checks pass. These checks do not establish learning efficacy, factual accuracy or production readiness. Teacher preparation is under review in [PR 2](https://github.com/JosseyMikka/stemMate-namibia/pull/2); the earlier learner redesign was merged in PR 1. No public deployment has been performed.
+Current teacher-tools branch verification: 74 backend tests, ten frontend suites, build/typecheck/lint and GitHub checks pass. These checks do not establish learning efficacy, factual accuracy or production readiness. Teacher preparation is under review in [PR 2](https://github.com/JosseyMikka/stemMate-namibia/pull/2); the earlier learner redesign was merged in PR 1. No public deployment has been performed.
 
 Historical database/index paths were removed from this fork's branches with an approved history rewrite. Copies in upstream repositories, caches, clones and backups remain a separate remediation issue. Do not push from old history-bearing clones.
 

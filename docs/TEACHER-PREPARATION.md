@@ -35,3 +35,13 @@ A final lesson sample still included a worked prediction hint and an already-mod
 Browser follow-up verified standalone lesson generation with no class selected, Cambridge Biology class prefilling, manual context overrides clearing the prefill picker, preserved prior draft with stale notice, and separate optional class administration. The API validates direct subject/course selections without reading a class. A Computer Science live request encountered a transient generation failure; the prior draft and inputs stayed available with an explicit error. This does not change the requirement for reviewing generated content.
 
 The Computer Science request succeeded on retry. Final build verified Cambridge A Level Computer Science qualification is retained when switching the 2027/2026 syllabus edition, and optional class administration is collapsed by default. At the 390px viewport override, document/client width was 375px without horizontal overflow. Physical iPhone/assistive-technology certification is not claimed.
+
+## Compact contextual help
+
+Supplemental guidance now sits beside Grade, Curriculum, Topic, Objective and required source content in small help buttons. Mouse hover, keyboard focus and tap reveal the text; Escape dismisses it without moving focus. The bubble remains available while hovered, and tapping again closes it. Optional class prefilling and lesson notes are collapsed; desktop context fields use two columns and narrow screens reflow to one. Processing permission, provider-retention and temporary-draft/review notices remain visible. Detailed storage behavior is in Privacy and draft details.
+
+Browser verified keyboard open/Escape, mouse opening and moving into the bubble, dismissal while focus was elsewhere, and simulated touch open/close at phone width. Touch targets measured 44×44px; document/client width was 375px with no horizontal overflow in the 390px override. Browser touch emulation and viewport settings were restored. This is not an actual iPhone or screen-reader certification. An initial refresh was blocked by automatic review over potential unsaved work; read-only inspection confirmed zero entered writing and zero generated drafts before refresh proceeded. No user writing was discarded.
+
+A new deterministic test checks Biology and Computing authored topics cannot be used with the other subject's courses across both curricula. Total backend tests: 74; frontend suites remain ten. This tests routing, not semantic correctness of generated AI output.
+
+Guidance: [W3C content on hover/focus](https://www.w3.org/WAI/WCAG22/Understanding/content-on-hover-or-focus.html) and [APG tooltip pattern](https://www.w3.org/WAI/ARIA/apg/patterns/tooltip/). These informed behavior and do not establish conformance.
