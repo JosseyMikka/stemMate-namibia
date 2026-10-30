@@ -31,6 +31,47 @@ class ClassroomTests(unittest.TestCase):
         self.room,self.code=self.create_class(self.teacher)
         self.join(self.learner,self.code)
 
+    def test_lesson_pins_curriculum_but_keeps_live_teacher_controls(self):
+        from modules.curricula import COURSES, PACK_VERSION
+        result=self.start(pack_version=PACK_VERSION)
+        self.action()
+        course=next(c for c in COURSES if c['id']=='na-nssco')
+        with patch.dict(course,{'pack_version':'future-release','version':'Future edition'}):
+            resumed=self.client.get('/learning/session',headers=self.headers)
+            self.assertEqual(resumed.json()['curriculum']['pack_version'],PACK_VERSION)
+            self.assertEqual(resumed.json()['stage'],'explain')
+            hint=self.action('hint')
+            self.assertEqual(hint.json()['curriculum']['pack_version'],PACK_VERSION)
+            child=self.client.post('/learning',headers=self.headers,json={'class_id':self.room['id'],'topic_id':'linear','pack_version':PACK_VERSION})
+            self.assertEqual(child.status_code,200,child.text)
+            self.assertEqual(child.json()['curriculum']['pack_version'],PACK_VERSION)
+            self.policy(paused=True)
+            self.assertEqual(self.action('hint').status_code,503)
+            self.assertEqual(main.store.get(result['token']).hints,1)
+
+    def test_provider_result_keeps_generation_version_when_catalogue_changes(self):
+        from modules.curricula import COURSES, PACK_VERSION
+        course=next(c for c in COURSES if c['id']=='na-nssco')
+        original=dict(course)
+        def generate(*args):
+            course['pack_version']='next-release'
+            return dict(LESSONS['linear'])
+        try:
+            with patch.object(main,'make_plan',side_effect=generate):
+                result=self.start(topic='Explain equations')
+            self.assertEqual(result['curriculum']['pack_version'],PACK_VERSION)
+            resumed=self.client.get('/learning/session',headers=self.headers)
+            self.assertEqual(resumed.json()['curriculum']['pack_version'],PACK_VERSION)
+        finally:
+            course.clear();course.update(original)
+
+    def test_unknown_version_does_not_start_or_call_provider(self):
+        with patch.object(main,'make_plan') as provider:
+            for body,status in [({'class_id':self.room['id']},409),({'course_id':'na-nssco'},422)]:
+                response=self.client.post('/learning',headers=self.learner,json={**body,'topic_id':'linear','topic':'help with equations','pack_version':'fake'})
+                self.assertEqual(response.status_code,status,response.text)
+            provider.assert_not_called()
+
     def register(self,name,role='learner'):
         r=self.client.post('/auth/register',json={'username':name,'password':PASSWORD,'role':role,'invitation':INVITE if role=='teacher' else ''})
         self.assertEqual(r.status_code,200,r.text)
@@ -63,6 +104,64 @@ class ClassroomTests(unittest.TestCase):
         plan=[{'question':f'Question {i}: explain a safe equation step.', 'hints':['Think of balance.','Use inverse operations.','Try subtracting.'],'reasoning':f'PRIVATE_REFERENCE_{i}'} for i in range(3)]
         with patch.object(main.quiz,'make_quiz',return_value=plan):
             return self.client.post('/quiz',headers=self.learner,json={'class_id':self.room['id'],'topic_id':'linear','consent':True,**changes})
+
+    def test_new_question_keeps_saved_lesson_and_attempts_private(self):
+        saved=self.start(consent=True)
+        self.action();self.action('hint')
+        original=main.store.get(saved['token'])
+        before=(original.stage,original.hints,original.direct_used,original.expires)
+        new_plan={**original.plan,'challenge':'NEW_QUESTION_CHALLENGE'}
+        with patch.object(main,'make_plan',return_value=new_plan) as generate:
+            r=self.client.post('/learning',headers=self.headers,json={
+                'class_id':self.room['id'],'topic_id':'linear',
+                'topic':'Why do inverse operations preserve equality?'})
+        self.assertEqual(r.status_code,200,r.text)
+        self.assertEqual(generate.call_args.args[0],'Why do inverse operations preserve equality?')
+        self.assertNotEqual(r.json()['token'],saved['token'])
+        self.assertEqual(r.json()['stage'],'attempt')
+        self.assertEqual(r.json()['hints'],[])
+        self.assertEqual((original.stage,original.hints,original.direct_used,original.expires),before)
+        # Responding to the saved exercise retains the existing prose-free contract.
+        self.assertEqual(self.action().json()['stage'],'feedback')
+        self.assertNotIn('Why do inverse',repr(main.store.sessions))
+
+    def test_new_question_obeys_saved_lesson_gates(self):
+        saved=self.start()
+        body={'class_id':self.room['id'],'topic_id':'linear','topic':'A new question'}
+        for endpoint in ['/learning','/explain']:
+            with patch.object(main,'make_plan') as generate, patch.object(main,'direct_explanation') as direct:
+                foreign={**self.teacher,'X-Learning-Token':saved['token']}
+                self.assertEqual(self.client.post(endpoint,headers=foreign,json=body).status_code,403)
+                self.policy(paused=True)
+                self.assertEqual(self.client.post(endpoint,headers=self.headers,json=body).status_code,503)
+                self.policy(paused=False)
+                self.assertEqual(self.client.post(endpoint,headers=self.headers,json={**body,'class_id':0,'course_id':'na-nssco'}).status_code,409)
+                generate.assert_not_called();direct.assert_not_called()
+        for _ in range(4):self.action()
+        self.assertEqual(main.store.get(saved['token']).stage,'independent')
+        with patch.object(main,'make_plan') as generate, patch.object(main,'direct_explanation') as direct:
+            for endpoint in ['/learning','/explain']:
+                self.assertEqual(self.client.post(endpoint,headers=self.headers,json=body).status_code,409)
+            generate.assert_not_called();direct.assert_not_called()
+        main.store.get(saved['token']).expires=0
+        self.assertEqual(self.client.post('/learning',headers=self.headers,json=body).status_code,404)
+
+    def test_new_question_failure_and_policy_recheck_preserve_parent(self):
+        saved=self.start()
+        original=main.store.get(saved['token'])
+        body={'class_id':self.room['id'],'topic_id':'linear','topic':'A new question'}
+        with patch.object(main,'make_plan',side_effect=RuntimeError('PRIVATE_PROVIDER_ERROR')):
+            r=self.client.post('/learning',headers=self.headers,json=body)
+        self.assertEqual(r.status_code,503)
+        self.assertNotIn('PRIVATE_PROVIDER_ERROR',r.text)
+        self.assertEqual(len(main.store.sessions),1)
+        def pause_during_generation(*_):
+            self.policy(paused=True)
+            return dict(original.plan)
+        with patch.object(main,'make_plan',side_effect=pause_during_generation):
+            self.assertEqual(self.client.post('/learning',headers=self.headers,json=body).status_code,503)
+        self.assertEqual(len(main.store.sessions),1)
+        self.assertEqual(original.stage,'attempt')
 
     def test_quiz_one_question_feedback_gates_and_privacy(self):
         self.assertEqual(self.client.post('/quiz',json={'topic_id':'linear'}).status_code,401)
