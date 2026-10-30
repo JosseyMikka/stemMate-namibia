@@ -55,6 +55,12 @@ for subject, label, co_code, as_code, ig_code, adv_code in [
                             'syllabus_subject':'Computer Science' if subject=='computing' else label,
                             'code':adv_code,'version':version,'grades':[10,11,12],'source':adv_source,'exam_years':years})
 
+# Internal content release, not a claim that the syllabus has been reviewed.
+# Never reuse this identifier for changed content; active sessions keep a snapshot.
+PACK_VERSION = 'starter-2026-10-29'
+for course in COURSES:
+    course.update(pack_id=course['id'], pack_version=PACK_VERSION, coverage_status='starter')
+
 NOTICE = 'Original starter practice, not a complete syllabus or an official examination question. Teacher review is required before assessed use.'
 
 
@@ -68,11 +74,12 @@ def catalogue():
             for course in COURSES]
 
 
-def course_for(course_id,grade,exam_year):
+def course_for(course_id,grade,exam_year,pack_version=None):
     for course in catalogue():
-        if course['id']==course_id and grade in course['grades'] and exam_year in course['exam_years']:
+        if (course['id']==course_id and grade in course['grades'] and exam_year in course['exam_years']
+                and (pack_version is None or course['pack_version']==pack_version)):
             return course
-    raise HTTPException(422,'Choose a supported subject, curriculum, grade and examination year (2026 or 2027).')
+    raise HTTPException(422,'Choose a supported subject, curriculum release, grade and examination year (2026 or 2027).')
 
 
 LESSONS = {
