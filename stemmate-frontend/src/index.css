@@ -233,3 +233,11 @@ header > div, .class-card strong, .class-card span {min-width:0;max-width:100%;o
 
 /* Recovered notes remain unavailable during the active independent check. */
 .companion-shell:has(.chat-workspace[data-independent-check="true"]) .draft-recovery{display:none}
+
+.teacher-preparation textarea{font-size:16px;min-height:110px;max-width:100%;white-space:pre-wrap}.teacher-preparation .preparation-output{min-height:280px}.teacher-preparation{min-width:0;overflow-wrap:anywhere}
+
+/* Supplemental help works with hover, focus or tap; essential permission stays visible. */
+.help-label{position:relative;display:flex;align-items:center;gap:8px;min-height:36px;margin-top:8px}.help-label>label{margin:0;flex:0 1 auto}.inline-help{display:inline-flex;flex:0 0 auto;align-self:stretch;align-items:center}.help-trigger{min-width:32px!important;min-height:32px!important;width:32px;height:32px;padding:0!important;border:1px solid #62768c!important;border-radius:50%;background:#eef3f8!important;color:#17334e!important;font-size:16px;line-height:1}.help-content{position:absolute;z-index:30;top:100%;left:0;width:min(32rem,100%);box-sizing:border-box;padding:12px 14px;border:1px solid #62768c;border-radius:8px;background:#17334e;color:#fff;font-size:14px;line-height:1.6;box-shadow:0 4px 12px #17334e26;overflow-wrap:anywhere}.help-content[hidden]{display:none}.preparation-context{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 18px}.preparation-context>div{min-width:0}.preparation-context-summary{font-weight:600}.teacher-preparation textarea:not(.preparation-output){min-height:84px}.preparation-prefill,.preparation-privacy{margin:10px 0}.teacher-preparation details>summary{min-height:32px;align-content:center;cursor:pointer}
+@media(max-width:600px){.preparation-context{grid-template-columns:minmax(0,1fr)}}
+@media(pointer:coarse){.help-trigger{min-width:44px!important;min-height:44px!important;width:44px;height:44px}}
+@media(forced-colors:active){.help-trigger,.help-content{background:Canvas!important;color:CanvasText!important;border-color:CanvasText!important}}

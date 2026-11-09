@@ -6,8 +6,10 @@ import unittest
 from unittest.mock import MagicMock, patch
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'server'))
-from modules.tutor import model_reply, make_plan
-from modules.curricula import LESSONS, PACK_VERSION, course_for
+import json
+from modules.tutor import model_reply, make_plan, reviewed_context
+from modules.curricula import LESSONS, PACK_VERSION, catalogue, course_for, starter_plan
+from fastapi import HTTPException
 
 class RetrievalTests(unittest.TestCase):
     def test_unlabelled_documents_are_not_used_as_cross_curriculum_fallback(self):
@@ -83,3 +85,87 @@ class RetrievalTests(unittest.TestCase):
         a['topics'].clear()
         self.assertTrue(course_for('na-nssco',10,2027,PACK_VERSION)['topics'])
         with self.assertRaises(HTTPException):course_for('na-nssco',10,2027,'invented-version')
+
+    def test_biology_and_computing_starters_cannot_cross_subjects(self):
+        courses=catalogue()
+        biology=[c for c in courses if c['subject']=='biology']
+        computing=[c for c in courses if c['subject']=='computing']
+        self.assertEqual({c['pathway'] for c in biology},{'Namibia','Cambridge'})
+        self.assertEqual({c['pathway'] for c in computing},{'Namibia','Cambridge'})
+        bio_topics={t['id'] for c in biology for t in c['topics']}
+        cs_topics={t['id'] for c in computing for t in c['topics']}
+        self.assertFalse(bio_topics & cs_topics)
+        for selected,foreign in ((biology,cs_topics),(computing,bio_topics)):
+            for course in selected:
+                for topic in course['topics']:
+                    self.assertEqual(starter_plan(course,topic['id']),LESSONS[topic['id']])
+                for topic_id in foreign:
+                    with self.subTest(course=course['id'],foreign_topic=topic_id),self.assertRaises(HTTPException) as caught:
+                        starter_plan(course,topic_id)
+                    self.assertEqual(caught.exception.status_code,422)
+
+    # --- Reconciliation guards (PR #2 x PR #3): keep reviewed-pack retrieval strict. ---
+    def _store_modules(self, docs):
+        vectorstore=MagicMock();vectorstore.similarity_search.return_value=docs
+        chroma=MagicMock(return_value=vectorstore)
+        vectors=types.ModuleType('langchain_community.vectorstores');vectors.Chroma=chroma
+        community=types.ModuleType('langchain_community');community.__path__=[]
+        embeddings=types.ModuleType('modules.embeddings');embeddings.embeddings=object()
+        return vectorstore,chroma,{'langchain_community':community,'langchain_community.vectorstores':vectors,'modules.embeddings':embeddings}
+
+    def _metadata(self, **changes):
+        return {'course_id':'na-nssco','pack_id':'na-nssco','pack_version':PACK_VERSION,'exam_year':2027,
+                'topic_id':'linear','approval_status':'reviewed','access_scope':'public_curriculum',
+                'source_id':'fixture-1','source_version':'v1','source_title':'Synthetic test source',
+                'source_locator':'page 1',**changes}
+
+    def test_teacher_preparation_path_never_queries_reviewed_store(self):
+        """teacher_planning calls model_reply(..., topic_id=None); that must not open the index."""
+        vectorstore,chroma,modules=self._store_modules([types.SimpleNamespace(page_content='FORBIDDEN_FIXTURE',metadata=self._metadata())])
+        model=MagicMock();model.invoke.return_value.content='draft'
+        groq=types.ModuleType('langchain_groq');groq.ChatGroq=MagicMock(return_value=model)
+        course={**course_for('na-nssco',10,2027),'exam_year':2027}
+        with tempfile.TemporaryDirectory() as directory, patch.dict(sys.modules,{**modules,'langchain_groq':groq}), patch.dict(os.environ,{'GROQ_API_KEY':'fictional-test-key','STEMMATE_VECTORSTORE_DIR':directory}):
+            Path(directory,'chroma.sqlite3').touch()
+            model_reply('teacher payload','secondary','draft',course,None)
+        chroma.assert_not_called();vectorstore.similarity_search.assert_not_called()
+        human=json.loads(model.invoke.call_args.args[0][1][1])
+        self.assertEqual(human['curriculum_excerpts'],'')
+        self.assertNotIn('FORBIDDEN_FIXTURE',repr(model.invoke.call_args))
+
+    def test_retrieval_requires_pack_identity_and_version(self):
+        vectorstore,chroma,modules=self._store_modules([])
+        base={**course_for('na-nssco',10,2027),'exam_year':2027}
+        with tempfile.TemporaryDirectory() as directory, patch.dict(sys.modules,modules), patch.dict(os.environ,{'STEMMATE_VECTORSTORE_DIR':directory}):
+            Path(directory,'chroma.sqlite3').touch()
+            for missing in ('pack_id','pack_version'):
+                with self.subTest(missing=missing):
+                    course={k:v for k,v in base.items() if k!=missing}
+                    self.assertEqual(reviewed_context('q',course,'linear'),'')
+                    self.assertEqual(reviewed_context('q',{**base,missing:''},'linear'),'')
+        chroma.assert_not_called()
+
+    def test_provenance_must_be_bounded_non_empty_strings(self):
+        good=types.SimpleNamespace(page_content='ALLOWED_FIXTURE',metadata=self._metadata())
+        bad=[types.SimpleNamespace(page_content='FORBIDDEN_FIXTURE',metadata=self._metadata(**{key:value}))
+             for key in ('source_id','source_version','source_title','source_locator')
+             for value in ('   ',None,7,'x'*129)]
+        vectorstore,chroma,modules=self._store_modules([*bad,good])
+        course={**course_for('na-nssco',10,2027),'exam_year':2027}
+        with tempfile.TemporaryDirectory() as directory, patch.dict(sys.modules,modules), patch.dict(os.environ,{'STEMMATE_VECTORSTORE_DIR':directory}):
+            Path(directory,'chroma.sqlite3').touch()
+            approved=json.loads(reviewed_context('q',course,'linear'))
+        self.assertEqual(len(approved),1)
+        self.assertEqual(approved[0],{'source_id':'fixture-1','source_version':'v1','title':'Synthetic test source','locator':'page 1','excerpt':'ALLOWED_FIXTURE'})
+        clauses=vectorstore.similarity_search.call_args.kwargs['filter']['$and']
+        self.assertEqual({key for clause in clauses for key in clause},{'course_id','pack_id','pack_version','exam_year','topic_id','approval_status','access_scope'})
+
+    def test_only_unreviewed_results_yield_no_context(self):
+        docs=[types.SimpleNamespace(page_content='FORBIDDEN_FIXTURE',metadata=self._metadata(approval_status='draft')),
+              types.SimpleNamespace(page_content='FORBIDDEN_FIXTURE',metadata=self._metadata(pack_version='superseded'))]
+        vectorstore,chroma,modules=self._store_modules(docs)
+        course={**course_for('na-nssco',10,2027),'exam_year':2027}
+        with tempfile.TemporaryDirectory() as directory, patch.dict(sys.modules,modules), patch.dict(os.environ,{'STEMMATE_VECTORSTORE_DIR':directory}):
+            Path(directory,'chroma.sqlite3').touch()
+            self.assertEqual(reviewed_context('q',course,'linear'),'')
+
