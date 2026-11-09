@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS projects (
 
 CREATE TABLE IF NOT EXISTS accounts (
  id INTEGER PRIMARY KEY, username TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL,
- role TEXT NOT NULL CHECK(role IN ('teacher','learner')));
+ role TEXT NOT NULL CHECK(role IN ('teacher','learner','guardian')));
 CREATE TABLE IF NOT EXISTS auth_sessions (
  token_hash TEXT PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES accounts(id), expires REAL NOT NULL);
 CREATE TABLE IF NOT EXISTS classes (
@@ -48,6 +48,19 @@ def db():
     connection.row_factory = sqlite3.Row
     connection.execute('PRAGMA foreign_keys=ON')
     connection.executescript(SCHEMA)
+    # Rebuild only the role constraint, retaining IDs and all foreign-key targets.
+    definition = connection.execute("SELECT sql FROM sqlite_master WHERE name='accounts'").fetchone()[0]
+    if "'guardian'" not in definition:
+        connection.execute('PRAGMA foreign_keys=OFF')
+        connection.execute('BEGIN IMMEDIATE')
+        definition = connection.execute("SELECT sql FROM sqlite_master WHERE name='accounts'").fetchone()[0]
+        if "'guardian'" not in definition:
+            connection.execute("CREATE TABLE accounts_next (id INTEGER PRIMARY KEY, username TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, role TEXT NOT NULL CHECK(role IN ('teacher','learner','guardian')))")
+            connection.execute('INSERT INTO accounts_next SELECT * FROM accounts')
+            connection.execute('DROP TABLE accounts')
+            connection.execute('ALTER TABLE accounts_next RENAME TO accounts')
+        connection.commit()
+        connection.execute('PRAGMA foreign_keys=ON')
     try:
         yield connection
         connection.commit()
@@ -88,7 +101,7 @@ class Credentials(BaseModel):
     password: str = Field(min_length=12, max_length=128)
 
 class Registration(Credentials):
-    role: Literal['teacher','learner'] = 'learner'
+    role: Literal['teacher','learner','guardian'] = 'learner'
     invitation: str = Field(default='', max_length=200)
 
 class ClassCreate(BaseModel):

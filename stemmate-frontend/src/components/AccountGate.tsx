@@ -28,7 +28,7 @@ export default function AccountGate({onSignedIn}: {onSignedIn: (user: User) => v
         <p id="alias-help">3–40 letters, numbers, hyphens or underscores. Avoid personal details.</p>
         <label htmlFor="password">Password (required)</label><input id="password" type="password" autoComplete={register ? 'new-password' : 'current-password'} minLength={12} maxLength={128} required value={password} disabled={busy} onChange={e=>setPassword(e.target.value)} aria-describedby="password-help" />
         <p id="password-help">Use 12–128 characters. Password managers and paste are supported.</p>
-        {register && <><label htmlFor="account-role">Account type</label><select id="account-role" value={role} disabled={busy} onChange={e=>setRole(e.target.value)}><option value="learner">Learner</option><option value="teacher">Invited teacher</option></select>
+        {register && <><label htmlFor="account-role">Account type</label><select id="account-role" value={role} disabled={busy} onChange={e=>setRole(e.target.value)}><option value="learner">Learner</option><option value="guardian">Parent or guardian</option><option value="teacher">Invited teacher</option></select>
           {role === 'teacher' && <><label htmlFor="teacher-invitation">Teacher invitation (required)</label><input id="teacher-invitation" type="password" autoComplete="off" required value={invitation} maxLength={200} disabled={busy} onChange={e=>setInvitation(e.target.value)} /><p>Ask your school administrator. Learners cannot grant themselves teacher access.</p></>}
         </>}
         <button disabled={busy}>{busy ? 'Please wait…' : register ? 'Create account' : 'Sign in'}</button>

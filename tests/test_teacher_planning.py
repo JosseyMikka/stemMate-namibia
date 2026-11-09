@@ -65,3 +65,14 @@ class PlanningTests(unittest.TestCase):
         for subject in ('computing','mathematics','chemistry'):
             with self.assertRaises(ValueError):planning.visual_for(subject,'diffusion')
         with self.assertRaises(ValueError):planning.visual_for('biology','https://untrusted.example/image')
+
+    def test_pack_version_pin_is_not_sent_to_provider_and_retrieval_stays_off(self):
+        value=planning.Preparation(mode='lesson',topic='Equations',objective='Explain balance',pack_version='starter-2026-10-29',consent=True)
+        output={'context_status':'fits_subject','learner_draft':'Predict.','teacher_guide':'Guide.','review_notes':'Review.'}
+        with patch.object(planning,'model_reply',return_value=json.dumps(output)) as reply:
+            planning.generate(value,{'grade':10,'exam_year':2027,'course':{'id':'na-nssco','subject':'mathematics','pack_version':'starter-2026-10-29'}})
+        payload=json.loads(reply.call_args.args[0])
+        self.assertNotIn('pack_version',payload);self.assertNotIn('course_id',payload)
+        self.assertIsNone(reply.call_args.args[4])
+        with self.assertRaises(ValueError):planning.Preparation(mode='lesson',topic='x',objective='y',pack_version='v'*81,consent=True)
+
